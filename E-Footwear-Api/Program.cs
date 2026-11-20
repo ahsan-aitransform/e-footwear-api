@@ -1,5 +1,9 @@
-using Dapper;
-using Npgsql;
+using System.Threading.RateLimiting;
+using E_Footwear_Api.Authentication;
+using E_Footwear_Api.Cli;
+using E_Footwear_Api.Middleware;
+using EFootwear.DAL;
+using Microsoft.AspNetCore.Authentication;
 
 namespace E_Footwear_Api
 {
@@ -9,16 +13,46 @@ namespace E_Footwear_Api
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.Services.AddControllers();
-            builder.Services.AddOpenApi();
+            // Operator commands run without starting the web server, e.g.:
+            //   dotnet run --project E-Footwear-Api -- create-platform-admin <username> "<full name>"
+            if (args.Length > 0 && args[0] == "create-platform-admin")
+            {
+                Environment.Exit(PlatformAdminCli.RunAsync(args, builder.Configuration).GetAwaiter().GetResult());
+                return;
+            }
 
-            var connString = builder.Configuration.GetConnectionString("Default")
-                ?? throw new InvalidOperationException("ConnectionStrings:Default is not set.");
-            builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connString).Build());
+            builder.Services.AddControllers();
+            builder.Services.AddOpenApi(o => o.AddDocumentTransformer<BearerSecurityTransformer>());
+            builder.Services.AddDal(builder.Configuration);
+
+            builder.Services.AddAuthentication(SessionAuth.Scheme)
+                .AddScheme<AuthenticationSchemeOptions, SessionAuthenticationHandler>(SessionAuth.Scheme, null);
+            builder.Services.AddAuthorization();
+
+            builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+            builder.Services.AddProblemDetails();
+
+            // Slows password guessing: 10 login attempts per minute per client address.
+            builder.Services.AddRateLimiter(o =>
+            {
+                o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                o.AddPolicy("login", http => RateLimitPartition.GetFixedWindowLimiter(
+                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+            });
 
             var app = builder.Build();
 
-            // Swagger UI
+            // Request pipeline, in order. Order matters:
+            //  1. exception handler  - turns any error into a clean JSON error response
+            //  2. swagger (dev only)
+            //  3. https redirect     - production only; the local frontend talks plain HTTP
+            //  4. rate limiter       - limits login attempts
+            //  5. authentication     - reads the token and fills RequestContext
+            //  6. must-change-password guard - a temporary password allows only /auth endpoints
+            //  7. authorization      - enforces [Authorize]
+            app.UseExceptionHandler();
+
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
@@ -28,22 +62,22 @@ namespace E_Footwear_Api
                     o.RoutePrefix = "swagger";
                 });
             }
+            else
+            {
+                app.UseHttpsRedirection();
+            }
 
-            app.UseHttpsRedirection();
+            app.UseRateLimiter();
+            app.UseAuthentication();
+            app.UseMiddleware<MustChangePasswordGuard>();
             app.UseAuthorization();
             app.MapControllers();
-
-            // Quick check that the app can reach the database.
-            app.MapGet("/health/db", async (NpgsqlDataSource db) =>
-            {
-                await using var conn = await db.OpenConnectionAsync();
-                var version = await conn.ExecuteScalarAsync<string>("select version()");
-                var tables = await conn.ExecuteScalarAsync<long>(
-                    "select count(*) from information_schema.tables where table_schema in ('sales','inv','acct')");
-                return Results.Ok(new { version, tables });
-            });
+            app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
             app.Run();
         }
     }
 }
+
+// lets the test project start the API in memory
+public partial class Program;

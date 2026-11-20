@@ -1,3 +1,7 @@
 <Solution>
   <Project Path="E-Footwear-Api/E-Footwear-Api.csproj" />
+  <Project Path="EFootwear.BLL/EFootwear.BLL.csproj" />
+  <Project Path="EFootwear.Domain/EFootwear.Domain.csproj" />
+  <Project Path="EFootwear.DAL/EFootwear.DAL.csproj" />
+  <Project Path="EFootwear.Tests/EFootwear.Tests.csproj" />
 </Solution>
