@@ -1,3 +1,9 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EFootwear.Application/EFootwear.Application.csproj" />
+    <Project Path="src/EFootwear.Domain/EFootwear.Domain.csproj" />
+    <Project Path="src/EFootwear.Infrastructure/EFootwear.Infrastructure.csproj" />
+  </Folder>
+  <Project Path="E-Footwear-Api.Tests/E-Footwear-Api.Tests.csproj" />
   <Project Path="E-Footwear-Api/E-Footwear-Api.csproj" />
 </Solution>
