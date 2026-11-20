@@ -22,7 +22,7 @@ public sealed class StoreRepository(DbSession db) : IStoreRepository
             .ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<StoreDto>> ListForCompanyAsync(long companyId, CancellationToken ct)
+    public async Task<IReadOnlyList<StoreDto>> ListForCompanyAsync(Guid companyId, CancellationToken ct)
     {
         db.UseCompany(companyId);
         var ctx = await db.DbAsync(ct);
@@ -33,14 +33,14 @@ public sealed class StoreRepository(DbSession db) : IStoreRepository
             .ToListAsync(ct);
     }
 
-    public async Task<bool> CodeExistsAsync(long companyId, string code, CancellationToken ct)
+    public async Task<bool> CodeExistsAsync(Guid companyId, string code, CancellationToken ct)
     {
         db.UseCompany(companyId);
         var ctx = await db.DbAsync(ct);
         return await ctx.Stores.AnyAsync(s => s.CompanyId == companyId && s.Code == code, ct);
     }
 
-    public async Task<long> CreateAsync(long companyId, string code, string name, CancellationToken ct)
+    public async Task<Guid> CreateAsync(Guid companyId, string code, string name, CancellationToken ct)
     {
         db.UseCompany(companyId);
         var ctx = await db.DbAsync(ct);
@@ -50,7 +50,7 @@ public sealed class StoreRepository(DbSession db) : IStoreRepository
         return store.Id;
     }
 
-    public async Task<IReadOnlyList<long>> ActiveSellingStoreIdsAsync(long companyId, IReadOnlyCollection<long> storeIds, CancellationToken ct)
+    public async Task<IReadOnlyList<Guid>> ActiveSellingStoreIdsAsync(Guid companyId, IReadOnlyCollection<Guid> storeIds, CancellationToken ct)
     {
         db.UseCompany(companyId);
         var ctx = await db.DbAsync(ct);

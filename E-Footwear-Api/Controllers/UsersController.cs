@@ -15,11 +15,11 @@ public sealed class UsersController(UserService users) : ControllerBase
 {
     /// <summary>Roles and stores the caller may use when creating a user.</summary>
     [HttpGet("creation-options")]
-    public async Task<IActionResult> CreationOptions([FromQuery] long? companyId, CancellationToken ct) =>
+    public async Task<IActionResult> CreationOptions([FromQuery] Guid? companyId, CancellationToken ct) =>
         Ok(await users.GetCreationOptionsAsync(companyId, ct));
 
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] long? companyId, CancellationToken ct) =>
+    public async Task<IActionResult> List([FromQuery] Guid? companyId, CancellationToken ct) =>
         Ok(await users.ListAsync(companyId, ct));
 
     [HttpPost]

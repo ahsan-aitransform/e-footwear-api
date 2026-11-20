@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace EFootwear.DAL.Persistence;
@@ -7,7 +8,7 @@ namespace EFootwear.DAL.Persistence;
 /// Refuses to start if the app connects as a superuser or a role that bypasses row-level security.
 /// Such a role ignores every tenant rule in the database, so a company could then read another's data.
 /// </summary>
-public sealed class DatabaseRoleGuard(NpgsqlDataSource dataSource) : IHostedService
+public sealed class DatabaseRoleGuard(NpgsqlDataSource dataSource, ILogger<DatabaseRoleGuard> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken ct)
     {
@@ -19,9 +20,14 @@ public sealed class DatabaseRoleGuard(NpgsqlDataSource dataSource) : IHostedServ
         var (name, isSuper, bypass) = (reader.GetString(0), reader.GetBoolean(1), reader.GetBoolean(2));
 
         if (isSuper || bypass)
+        {
+            logger.LogCritical("Database role {Role} is a superuser or bypasses row-level security. Refusing to start.", name);
             throw new InvalidOperationException(
                 $"Database role '{name}' is a superuser or bypasses row-level security. " +
                 "Connect as a login role that is a member of pos_app (see db/create_app_login.sql).");
+        }
+
+        logger.LogInformation("Database role {Role} verified: not a superuser, row-level security applies.", name);
     }
 
     public Task StopAsync(CancellationToken ct) => Task.CompletedTask;

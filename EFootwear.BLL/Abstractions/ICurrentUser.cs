@@ -7,12 +7,12 @@ namespace EFootwear.BLL.Abstractions;
 public interface ICurrentUser
 {
     bool IsAuthenticated { get; }
-    long CompanyId { get; }
-    long UserId { get; }
+    Guid CompanyId { get; }
+    Guid UserId { get; }
     string RoleCode { get; }
     bool AllStores { get; }
-    IReadOnlyList<long> StoreIds { get; }
+    IReadOnlyList<Guid> StoreIds { get; }
 
     /// <summary>True when the user may act on this store (owner, or store is assigned).</summary>
-    bool CanAccessStore(long storeId);
+    bool CanAccessStore(Guid storeId);
 }

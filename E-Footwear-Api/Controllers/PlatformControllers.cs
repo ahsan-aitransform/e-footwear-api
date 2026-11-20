@@ -43,11 +43,11 @@ public sealed class PlatformController(PlatformService platform) : ControllerBas
     public async Task<IActionResult> CreateCompany(CreateCompanyRequest body, CancellationToken ct) =>
         StatusCode(StatusCodes.Status201Created, await platform.CreateCompanyAsync(body, ct));
 
-    [HttpGet("companies/{companyId:long}/stores")]
-    public async Task<IActionResult> ListStores(long companyId, CancellationToken ct) =>
+    [HttpGet("companies/{companyId:guid}/stores")]
+    public async Task<IActionResult> ListStores(Guid companyId, CancellationToken ct) =>
         Ok(await platform.ListStoresAsync(companyId, ct));
 
-    [HttpPost("companies/{companyId:long}/stores")]
-    public async Task<IActionResult> CreateStore(long companyId, CreateStoreRequest body, CancellationToken ct) =>
+    [HttpPost("companies/{companyId:guid}/stores")]
+    public async Task<IActionResult> CreateStore(Guid companyId, CreateStoreRequest body, CancellationToken ct) =>
         StatusCode(StatusCodes.Status201Created, new { id = await platform.CreateStoreAsync(companyId, body, ct) });
 }

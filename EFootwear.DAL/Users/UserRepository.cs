@@ -19,7 +19,7 @@ public sealed class UserRepository(DbSession db) : IUserRepository
         return await ctx.Database.SqlQuery<bool>($"select platform.email_in_use({email}) as \"Value\"").SingleAsync(ct);
     }
 
-    public async Task<long> InsertAsync(long companyId, NewUser user, long? createdBy, CancellationToken ct)
+    public async Task<Guid> InsertAsync(Guid companyId, NewUser user, Guid? createdBy, CancellationToken ct)
     {
         db.UseCompany(companyId);
         var ctx = await db.DbAsync(ct);
@@ -40,7 +40,7 @@ public sealed class UserRepository(DbSession db) : IUserRepository
         return entity.Id;
     }
 
-    public async Task AddStoresAsync(long companyId, long userId, IReadOnlyList<long> storeIds, CancellationToken ct)
+    public async Task AddStoresAsync(Guid companyId, Guid userId, IReadOnlyList<Guid> storeIds, CancellationToken ct)
     {
         db.UseCompany(companyId);
         var ctx = await db.DbAsync(ct);
@@ -48,7 +48,7 @@ public sealed class UserRepository(DbSession db) : IUserRepository
         await ctx.SaveChangesAsync(ct);
     }
 
-    public async Task<IReadOnlyList<UserListItem>> ListAsync(long companyId, IReadOnlyList<long>? storeScope, CancellationToken ct)
+    public async Task<IReadOnlyList<UserListItem>> ListAsync(Guid companyId, IReadOnlyList<Guid>? storeScope, CancellationToken ct)
     {
         db.UseCompany(companyId);
         var ctx = await db.DbAsync(ct);

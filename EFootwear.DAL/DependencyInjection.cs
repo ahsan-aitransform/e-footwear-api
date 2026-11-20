@@ -36,7 +36,9 @@ public static class DependencyInjection
 
         // EF Core, used by the platform-admin repository (own short-lived contexts). Request-scoped work uses the
         // context that DbSession builds on its own connection and transaction.
-        services.AddDbContextFactory<AppDbContext>(o => o.UseNpgsql(dataSource));
+        services.AddSingleton<SlowQueryInterceptor>();
+        services.AddDbContextFactory<AppDbContext>((sp, o) =>
+            o.UseNpgsql(dataSource).AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>()));
 
         // At startup, refuse to run as a superuser (it would bypass row-level security).
         services.AddHostedService<DatabaseRoleGuard>();

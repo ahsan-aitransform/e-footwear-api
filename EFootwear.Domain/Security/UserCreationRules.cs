@@ -4,7 +4,7 @@ using EFootwear.Domain.Common;
 namespace EFootwear.Domain.Security;
 
 /// <summary>Who is asking to create a user. Built by the BLL from the validated session, never from the request.</summary>
-public sealed record Caller(bool IsPlatformAdmin, string? RoleCode, bool AllStores, IReadOnlySet<long> StoreIds);
+public sealed record Caller(bool IsPlatformAdmin, string? RoleCode, bool AllStores, IReadOnlySet<Guid> StoreIds);
 
 /// <summary>
 /// The user-creation rules, as pure code so they can be unit-tested without a database.
@@ -38,7 +38,7 @@ public static partial class UserCreationRules
     }
 
     /// <summary>Throws when the caller may not create a user with this role and these stores.</summary>
-    public static void EnsureCanCreate(Caller caller, string targetRole, IReadOnlyCollection<long> storeIds)
+    public static void EnsureCanCreate(Caller caller, string targetRole, IReadOnlyCollection<Guid> storeIds)
     {
         if (!CreatableRoles(caller).Contains(targetRole))
             throw new DomainException(ErrorKind.Forbidden, $"You are not allowed to create a user with role {targetRole}.");
@@ -53,7 +53,7 @@ public static partial class UserCreationRules
         if (storeIds.Count == 0)
             throw new DomainException(ErrorKind.Validation, "Choose the store for this user.");
 
-        if (storeIds.Any(s => s <= 0))
+        if (storeIds.Any(s => s == Guid.Empty))
             throw new DomainException(ErrorKind.Validation, "Choose a store. Head office cannot hold store staff.");
 
         if (targetRole == RoleCodes.StoreManager && storeIds.Count != 1)

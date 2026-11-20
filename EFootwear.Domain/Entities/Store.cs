@@ -6,8 +6,8 @@ namespace EFootwear.Domain.Entities;
 /// </summary>
 public sealed class Store
 {
-    public long CompanyId { get; set; }
-    public long Id { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid Id { get; set; }
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";
     public bool IsHeadOffice { get; set; }

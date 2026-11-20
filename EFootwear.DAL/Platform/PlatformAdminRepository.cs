@@ -67,14 +67,14 @@ public sealed class PlatformAdminRepository(IDbContextFactory<AppDbContext> fact
     private sealed class LoginRow
     {
         public string Outcome { get; set; } = "";
-        public long? AdminId { get; set; }
+        public Guid? AdminId { get; set; }
         public string? SessionToken { get; set; }
         public DateTimeOffset? LockedUntil { get; set; }
     }
 
     private sealed class SessionRow
     {
-        public long AdminId { get; set; }
+        public Guid AdminId { get; set; }
         public string Username { get; set; } = "";
         public string FullName { get; set; } = "";
     }

@@ -14,13 +14,13 @@ namespace EFootwear.DAL.Auth;
 /// </summary>
 public sealed class AuthRepository(DbSession db, RequestContext context) : IAuthRepository
 {
-    public void UseCompany(long companyId) => db.UseCompany(companyId);
+    public void UseCompany(Guid companyId) => db.UseCompany(companyId);
 
-    public async Task<long?> FindCompanyIdByEmailAsync(string email, CancellationToken ct)
+    public async Task<Guid?> FindCompanyIdByEmailAsync(string email, CancellationToken ct)
     {
         var ctx = await db.DbAsync(ct);
         return await ctx.Database
-            .SqlQuery<long?>($"select platform.find_company_by_user_email({email}) as \"Value\"")
+            .SqlQuery<Guid?>($"select platform.find_company_by_user_email({email}) as \"Value\"")
             .SingleAsync(ct);
     }
 
@@ -34,7 +34,7 @@ public sealed class AuthRepository(DbSession db, RequestContext context) : IAuth
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<string?> GetPasswordHashByUserIdAsync(long companyId, long userId, CancellationToken ct)
+    public async Task<string?> GetPasswordHashByUserIdAsync(Guid companyId, Guid userId, CancellationToken ct)
     {
         db.UseCompany(companyId);
         var ctx = await db.DbAsync(ct);
@@ -44,7 +44,7 @@ public sealed class AuthRepository(DbSession db, RequestContext context) : IAuth
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<LoginOutcome> LoginAsync(long companyId, string username, bool passwordOk,
+    public async Task<LoginOutcome> LoginAsync(Guid companyId, string username, bool passwordOk,
                                                string? ip, string? userAgent, CancellationToken ct)
     {
         var ctx = await db.DbAsync(ct);
@@ -65,14 +65,14 @@ public sealed class AuthRepository(DbSession db, RequestContext context) : IAuth
         }
     }
 
-    public async Task<SessionIdentity> ValidateSessionAsync(long companyId, string token, CancellationToken ct)
+    public async Task<SessionIdentity> ValidateSessionAsync(Guid companyId, string token, CancellationToken ct)
     {
         var ctx = await db.DbAsync(ct);
-        long userId;
+        Guid userId;
         try
         {
             userId = await ctx.Database
-                .SqlQuery<long>($"select sec.validate_session({companyId}, {token}) as \"Value\"")
+                .SqlQuery<Guid>($"select sec.validate_session({companyId}, {token}) as \"Value\"")
                 .SingleAsync(ct);
         }
         catch (PostgresException ex) when (ex.SqlState == PgErrors.InvalidAuthorizationSpecification)
@@ -93,13 +93,13 @@ public sealed class AuthRepository(DbSession db, RequestContext context) : IAuth
         return new SessionIdentity(userId, user.RoleCode, user.AllStores, stores, user.MustChangePassword);
     }
 
-    public async Task LogoutAsync(long companyId, string token, CancellationToken ct)
+    public async Task LogoutAsync(Guid companyId, string token, CancellationToken ct)
     {
         var ctx = await db.DbAsync(ct);
         await ctx.Database.ExecuteSqlAsync($"select sec.logout({companyId}, {token})", ct);
     }
 
-    public async Task ChangePasswordAsync(long companyId, long userId, string newPasswordHash, CancellationToken ct)
+    public async Task ChangePasswordAsync(Guid companyId, Guid userId, string newPasswordHash, CancellationToken ct)
     {
         db.UseCompany(companyId);
         var ctx = await db.DbAsync(ct);
@@ -123,7 +123,7 @@ public sealed class AuthRepository(DbSession db, RequestContext context) : IAuth
     private sealed class LoginRow
     {
         public string Outcome { get; set; } = "";
-        public long? UserId { get; set; }
+        public Guid? UserId { get; set; }
         public string? SessionToken { get; set; }
         public bool? MustChangePassword { get; set; }
         public DateTimeOffset? LockedUntil { get; set; }

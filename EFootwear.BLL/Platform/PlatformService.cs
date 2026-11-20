@@ -4,15 +4,16 @@ using EFootwear.BLL.Common;
 using EFootwear.BLL.Stores;
 using EFootwear.Domain.Common;
 using EFootwear.Domain.Security;
+using Microsoft.Extensions.Logging;
 
 namespace EFootwear.BLL.Platform;
 
-public sealed record CompanySummary(long Id, string Name, string Status, string Timezone, string CurrencyCode, DateTimeOffset CreatedAt);
+public sealed record CompanySummary(Guid Id, string Name, string Status, string Timezone, string CurrencyCode, DateTimeOffset CreatedAt);
 
 public sealed record CreateCompanyRequest(string Name, string? Timezone, string OwnerEmail, string OwnerFullName,
                                           string OwnerPassword, string FirstStoreCode, string FirstStoreName);
 
-public sealed record CreatedCompany(long CompanyId, long FirstStoreId, long OwnerUserId);
+public sealed record CreatedCompany(Guid CompanyId, Guid FirstStoreId, Guid OwnerUserId);
 
 public sealed record CreateStoreRequest(string Code, string Name);
 
@@ -20,12 +21,12 @@ public sealed record CreateStoreRequest(string Code, string Name);
 public interface IPlatformRepository
 {
     Task<IReadOnlyList<CompanySummary>> ListCompaniesAsync(CancellationToken ct);
-    Task<bool> CompanyExistsAsync(long companyId, CancellationToken ct);
+    Task<bool> CompanyExistsAsync(Guid companyId, CancellationToken ct);
 
     /// <summary>Creates the company, its first store and its owner in one database function.</summary>
-    Task<CreatedCompany> CreateCompanyAsync(long adminId, CreateCompanyRequest request, string ownerPasswordHash, CancellationToken ct);
+    Task<CreatedCompany> CreateCompanyAsync(Guid adminId, CreateCompanyRequest request, string ownerPasswordHash, CancellationToken ct);
 
-    Task LogAdminActionAsync(long adminId, string action, long? companyId, object detail, CancellationToken ct);
+    Task LogAdminActionAsync(Guid adminId, string action, Guid? companyId, object detail, CancellationToken ct);
 }
 
 /// <summary>
@@ -33,7 +34,7 @@ public interface IPlatformRepository
 /// Only a platform administrator may call these. Company users never reach this code.
 /// </summary>
 public sealed partial class PlatformService(IPlatformRepository platform, IStoreRepository stores, EFootwear.BLL.Users.IUserRepository users,
-                                            IPasswordHasher hasher, RequestContext context, IUnitOfWork uow)
+                                            IPasswordHasher hasher, RequestContext context, IUnitOfWork uow, ILogger<PlatformService> log)
 {
     [GeneratedRegex("^[A-Za-z0-9-]{1,20}$")]
     private static partial Regex StoreCodePattern();
@@ -66,17 +67,19 @@ public sealed partial class PlatformService(IPlatformRepository platform, IStore
             FirstStoreName = req.FirstStoreName.Trim(),
         }, hash, ct);
         await uow.CommitAsync(ct);
+        log.LogInformation("Company {CompanyId} created with first store {StoreId} and owner {OwnerUserId} by platform admin {AdminId}",
+            created.CompanyId, created.FirstStoreId, created.OwnerUserId, context.PlatformAdminId);
         return created;
     }
 
-    public async Task<IReadOnlyList<StoreDto>> ListStoresAsync(long companyId, CancellationToken ct)
+    public async Task<IReadOnlyList<StoreDto>> ListStoresAsync(Guid companyId, CancellationToken ct)
     {
         RequirePlatformAdmin();
         await EnsureCompanyExistsAsync(companyId, ct);
         return await stores.ListForCompanyAsync(companyId, ct);
     }
 
-    public async Task<long> CreateStoreAsync(long companyId, CreateStoreRequest req, CancellationToken ct)
+    public async Task<Guid> CreateStoreAsync(Guid companyId, CreateStoreRequest req, CancellationToken ct)
     {
         RequirePlatformAdmin();
         await EnsureCompanyExistsAsync(companyId, ct);
@@ -90,6 +93,8 @@ public sealed partial class PlatformService(IPlatformRepository platform, IStore
         await platform.LogAdminActionAsync(context.PlatformAdminId!.Value, "STORE_CREATED", companyId,
                                            new { storeId = id, code }, ct);
         await uow.CommitAsync(ct);
+        log.LogInformation("Store {StoreId} ({Code}) created in company {CompanyId} by platform admin {AdminId}",
+            id, code, companyId, context.PlatformAdminId);
         return id;
     }
 
@@ -99,9 +104,9 @@ public sealed partial class PlatformService(IPlatformRepository platform, IStore
             throw new DomainException(ErrorKind.Forbidden, "Only platform administrators can do this.");
     }
 
-    private async Task EnsureCompanyExistsAsync(long companyId, CancellationToken ct)
+    private async Task EnsureCompanyExistsAsync(Guid companyId, CancellationToken ct)
     {
-        if (companyId <= 0 || !await platform.CompanyExistsAsync(companyId, ct))
+        if (companyId == Guid.Empty || !await platform.CompanyExistsAsync(companyId, ct))
             throw new DomainException(ErrorKind.NotFound, "Company not found.");
     }
 

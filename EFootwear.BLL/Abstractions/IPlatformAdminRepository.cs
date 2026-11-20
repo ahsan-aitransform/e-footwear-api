@@ -3,7 +3,7 @@ using EFootwear.BLL.Common;
 namespace EFootwear.BLL.Abstractions;
 
 // Result of platform.admin_login: Outcome is "OK", "INVALID" or "LOCKED".
-public sealed record PlatformLoginOutcome(string Outcome, long? AdminId, string? SessionToken, DateTimeOffset? LockedUntil);
+public sealed record PlatformLoginOutcome(string Outcome, Guid? AdminId, string? SessionToken, DateTimeOffset? LockedUntil);
 
 /// <summary>
 /// BLL contract for platform administrator accounts. These accounts have no company, so this repository

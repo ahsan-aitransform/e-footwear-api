@@ -14,16 +14,18 @@ namespace EFootwear.DAL.Persistence;
 /// caller's company and stores. A platform administrator chooses the company per operation with
 /// <see cref="UseCompany"/>; the scope is re-applied if it changes inside the same transaction.
 /// </summary>
-public sealed class DbSession(NpgsqlDataSource dataSource, RequestContext context) : IUnitOfWork, IAsyncDisposable
+public sealed class DbSession(NpgsqlDataSource dataSource, RequestContext context, SlowQueryInterceptor slowQueries,
+                         Microsoft.Extensions.Logging.ILoggerFactory loggerFactory)
+    : IUnitOfWork, IAsyncDisposable
 {
     private NpgsqlConnection? _conn;
     private NpgsqlTransaction? _tx;
     private AppDbContext? _db;
-    private long? _companyOverride;
+    private Guid? _companyOverride;
     private string? _appliedScope;
 
     /// <summary>Selects the company for the next statements. A company user can only be scoped to their own company.</summary>
-    public void UseCompany(long companyId)
+    public void UseCompany(Guid companyId)
     {
         if (context.CompanyIdOrNull is { } own && own != companyId)
             throw new InvalidOperationException("A company user cannot act on another company.");
@@ -36,7 +38,7 @@ public sealed class DbSession(NpgsqlDataSource dataSource, RequestContext contex
         var (conn, tx) = await ApplyScopeAsync(ct);
         if (_db is null)
         {
-            var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(conn).Options;
+            var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(conn).UseLoggerFactory(loggerFactory).AddInterceptors(slowQueries).Options;
             _db = new AppDbContext(options);
             await _db.Database.UseTransactionAsync(tx, ct);
         }

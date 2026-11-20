@@ -6,8 +6,8 @@ namespace EFootwear.Domain.Entities;
 /// </summary>
 public sealed class AppUser
 {
-    public long CompanyId { get; set; }
-    public long Id { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid Id { get; set; }
     public string Username { get; set; } = "";
     public string Email { get; set; } = "";         // sign-in name, unique across all companies
     public string PasswordHash { get; set; } = "";
@@ -18,5 +18,5 @@ public sealed class AppUser
     public bool MustChangePassword { get; set; } = true;
     public bool IsDeleted { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
-    public long? CreatedBy { get; set; }
+    public Guid? CreatedBy { get; set; }
 }

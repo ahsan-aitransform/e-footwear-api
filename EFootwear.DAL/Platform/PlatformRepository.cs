@@ -20,14 +20,14 @@ public sealed class PlatformRepository(DbSession db) : IPlatformRepository
             .ToListAsync(ct);
     }
 
-    public async Task<bool> CompanyExistsAsync(long companyId, CancellationToken ct)
+    public async Task<bool> CompanyExistsAsync(Guid companyId, CancellationToken ct)
     {
         var ctx = await db.DbAsync(ct);
         return await ctx.Companies.AnyAsync(c => c.Id == companyId, ct);
     }
 
     // The company, its first store and its owner are created together by one database function.
-    public async Task<CreatedCompany> CreateCompanyAsync(long adminId, CreateCompanyRequest request, string ownerPasswordHash, CancellationToken ct)
+    public async Task<CreatedCompany> CreateCompanyAsync(Guid adminId, CreateCompanyRequest request, string ownerPasswordHash, CancellationToken ct)
     {
         var ctx = await db.DbAsync(ct);
         var row = await ctx.Database.SqlQuery<CreatedRow>($"""
@@ -39,7 +39,7 @@ public sealed class PlatformRepository(DbSession db) : IPlatformRepository
         return new CreatedCompany(row.CompanyId, row.FirstStoreId, row.OwnerUserId);
     }
 
-    public async Task LogAdminActionAsync(long adminId, string action, long? companyId, object detail, CancellationToken ct)
+    public async Task LogAdminActionAsync(Guid adminId, string action, Guid? companyId, object detail, CancellationToken ct)
     {
         var ctx = await db.DbAsync(ct);
         var json = JsonSerializer.Serialize(detail);
@@ -51,8 +51,8 @@ public sealed class PlatformRepository(DbSession db) : IPlatformRepository
 
     private sealed class CreatedRow
     {
-        public long CompanyId { get; set; }
-        public long FirstStoreId { get; set; }
-        public long OwnerUserId { get; set; }
+        public Guid CompanyId { get; set; }
+        public Guid FirstStoreId { get; set; }
+        public Guid OwnerUserId { get; set; }
     }
 }

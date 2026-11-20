@@ -11,16 +11,31 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
     public async ValueTask<bool> TryHandleAsync(HttpContext http, Exception ex, CancellationToken ct)
     {
         var (status, title, detail) = Map(ex);
-        if (status >= 500) logger.LogError(ex, "Unhandled exception");
+        var correlationId = http.Items[CorrelationIdMiddleware.ItemKey] as string;
+
+        // Expected refusals (validation, wrong password, forbidden...) are normal traffic: one short line, no stack trace.
+        // Only genuine faults (5xx) are logged as errors with the full exception.
+        if (status >= 500)
+            logger.LogError(ex, "Unhandled exception on {Method} {Path}", http.Request.Method, http.Request.Path);
+        else
+        {
+            var cause = ex is Microsoft.EntityFrameworkCore.DbUpdateException { InnerException: { } inner } ? inner : ex;
+            var level = status is 401 or 403 or 423 ? LogLevel.Warning : LogLevel.Information;
+            logger.Log(level, "Request refused with {Status} {Title} on {Method} {Path}: {Reason}",
+                status, title, http.Request.Method, http.Request.Path,
+                cause is PostgresException pg ? $"database rule {pg.SqlState} {pg.ConstraintName}".Trim() : detail);
+        }
 
         http.Response.StatusCode = status;
-        await http.Response.WriteAsJsonAsync(new ProblemDetails
+        var problem = new ProblemDetails
         {
             Status = status,
             Title = title,
             Detail = detail,
             Instance = http.Request.Path,
-        }, ct);
+        };
+        if (correlationId is not null) problem.Extensions["correlationId"] = correlationId;
+        await http.Response.WriteAsJsonAsync(problem, ct);
         return true;
     }
 

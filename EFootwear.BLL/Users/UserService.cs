@@ -4,18 +4,19 @@ using EFootwear.BLL.Platform;
 using EFootwear.BLL.Stores;
 using EFootwear.Domain.Common;
 using EFootwear.Domain.Security;
+using Microsoft.Extensions.Logging;
 
 namespace EFootwear.BLL.Users;
 
-public sealed record CreateUserRequest(long? CompanyId, string Email, string FullName, string RoleCode,
-                                       IReadOnlyList<long>? StoreIds, string Password);
+public sealed record CreateUserRequest(Guid? CompanyId, string Email, string FullName, string RoleCode,
+                                       IReadOnlyList<Guid>? StoreIds, string Password);
 
 public sealed record CreationOptions(IReadOnlyList<string> Roles, IReadOnlyList<StoreDto> Stores, bool NeedsStore);
 
 public sealed record NewUser(string Email, string PasswordHash, string FullName, string RoleCode, bool AllStores);
 
-public sealed record UserListItem(long Id, string Email, string FullName, string RoleCode, bool AllStores,
-                                  string Status, bool MustChangePassword, IReadOnlyList<long> StoreIds,
+public sealed record UserListItem(Guid Id, string Email, string FullName, string RoleCode, bool AllStores,
+                                  string Status, bool MustChangePassword, IReadOnlyList<Guid> StoreIds,
                                   IReadOnlyList<string> StoreCodes);
 
 /// <summary>BLL contract for the DAL. Implemented in EFootwear.DAL/Users/UserRepository.cs.</summary>
@@ -23,11 +24,11 @@ public interface IUserRepository
 {
     /// <summary>True when any user of any company has this email (emails are unique platform-wide).</summary>
     Task<bool> EmailExistsAsync(string email, CancellationToken ct);
-    Task<long> InsertAsync(long companyId, NewUser user, long? createdBy, CancellationToken ct);
-    Task AddStoresAsync(long companyId, long userId, IReadOnlyList<long> storeIds, CancellationToken ct);
+    Task<Guid> InsertAsync(Guid companyId, NewUser user, Guid? createdBy, CancellationToken ct);
+    Task AddStoresAsync(Guid companyId, Guid userId, IReadOnlyList<Guid> storeIds, CancellationToken ct);
 
     /// <summary>Users of the company. With storeScope set, only users who work in one of those stores.</summary>
-    Task<IReadOnlyList<UserListItem>> ListAsync(long companyId, IReadOnlyList<long>? storeScope, CancellationToken ct);
+    Task<IReadOnlyList<UserListItem>> ListAsync(Guid companyId, IReadOnlyList<Guid>? storeScope, CancellationToken ct);
 }
 
 /// <summary>
@@ -38,9 +39,9 @@ public interface IUserRepository
 /// bound to their own company; naming another company is refused.
 /// </summary>
 public sealed class UserService(IUserRepository users, IStoreRepository stores, IPlatformRepository platform,
-                                IPasswordHasher hasher, RequestContext context, IUnitOfWork uow)
+                                IPasswordHasher hasher, RequestContext context, IUnitOfWork uow, ILogger<UserService> log)
 {
-    public async Task<CreationOptions> GetCreationOptionsAsync(long? companyId, CancellationToken ct)
+    public async Task<CreationOptions> GetCreationOptionsAsync(Guid? companyId, CancellationToken ct)
     {
         var company = await ResolveCompanyAsync(companyId, ct);
         var roles = UserCreationRules.CreatableRoles(context.ToCaller());
@@ -54,18 +55,18 @@ public sealed class UserService(IUserRepository users, IStoreRepository stores, 
         return new CreationOptions(roles, selling, NeedsStore: roles.Any(r => r != RoleCodes.CompanyOwner));
     }
 
-    public async Task<IReadOnlyList<UserListItem>> ListAsync(long? companyId, CancellationToken ct)
+    public async Task<IReadOnlyList<UserListItem>> ListAsync(Guid? companyId, CancellationToken ct)
     {
         var company = await ResolveCompanyAsync(companyId, ct);
 
         // A store manager sees only the people who work in its stores. Owners and platform admins see all.
-        IReadOnlyList<long>? scope = context.IsPlatformAdmin || context.AllStores
+        IReadOnlyList<Guid>? scope = context.IsPlatformAdmin || context.AllStores
             ? null
             : context.StoreIds.ToList();
         return await users.ListAsync(company, scope, ct);
     }
 
-    public async Task<long> CreateAsync(CreateUserRequest req, CancellationToken ct)
+    public async Task<Guid> CreateAsync(CreateUserRequest req, CancellationToken ct)
     {
         var company = await ResolveCompanyAsync(req.CompanyId, ct);
 
@@ -88,7 +89,7 @@ public sealed class UserService(IUserRepository users, IStoreRepository stores, 
 
         var newUser = new NewUser(email, hasher.Hash(req.Password!), fullName, req.RoleCode,
                                   AllStores: req.RoleCode == RoleCodes.CompanyOwner);
-        var createdBy = context.IsPlatformAdmin ? (long?)null : context.UserId;
+        var createdBy = context.IsPlatformAdmin ? (Guid?)null : context.UserId;
         var id = await users.InsertAsync(company, newUser, createdBy, ct);
         if (storeIds.Count > 0)
             await users.AddStoresAsync(company, id, storeIds, ct);
@@ -98,15 +99,17 @@ public sealed class UserService(IUserRepository users, IStoreRepository stores, 
                                                new { userId = id, email, role = req.RoleCode, storeIds }, ct);
 
         await uow.CommitAsync(ct);
+        log.LogInformation("User {NewUserId} created in company {CompanyId} with role {Role} by {Actor}",
+            id, company, req.RoleCode, context.IsPlatformAdmin ? $"platform admin {context.PlatformAdminId}" : $"user {context.UserId}");
         return id;
     }
 
     /// <summary>Platform administrators name the company. Company users are always their own company.</summary>
-    private async Task<long> ResolveCompanyAsync(long? requested, CancellationToken ct)
+    private async Task<Guid> ResolveCompanyAsync(Guid? requested, CancellationToken ct)
     {
         if (context.IsPlatformAdmin)
         {
-            if (requested is not > 0)
+            if (requested is null || requested == Guid.Empty)
                 throw new DomainException(ErrorKind.Validation, "Choose the company.");
             if (!await platform.CompanyExistsAsync(requested.Value, ct))
                 throw new DomainException(ErrorKind.NotFound, "Company not found.");

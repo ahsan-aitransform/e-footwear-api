@@ -41,3 +41,12 @@ Request flow:
 2. **DAL:** `Products/ProductRepository.cs` (SQL via `DbSession.GetAsync()`); register both in `DependencyInjection.cs`.
 3. **API:** `ProductsController` with `[Authorize]` and `[RequirePermission(...)]`.
 4. **Tests.**
+
+## Database and ids (schema v7)
+
+- `db/schema_v7_uuid.sql` is the baseline: apply it to an empty database as `postgres`. Later changes go in `db/migrations/` (numbered from 0001).
+- Every id is a `uuid` (PostgreSQL 18 `uuidv7()`, time-ordered). In C# they are `Guid`; in the API and the frontend they are strings.
+- The head office of a company is the store with the nil id `00000000-0000-0000-0000-000000000000`. It replaces the old store id 0.
+- Document numbers (`invoice_no`, `voucher_no`, ...), `row_ver` and `change_seq` stay `bigint`: they are counters, not ids.
+- `db/legacy_bigint/` holds the old numeric-id migrations. They are kept for reference only and must not be run.
+- Logging: Serilog (console + daily file in `E-Footwear-Api/logs/`), configured in `appsettings*.json`. Every request has a correlation id (`X-Correlation-Id`).

@@ -11,31 +11,31 @@ namespace EFootwear.BLL.Common;
 public sealed class RequestContext : ICurrentUser
 {
     private SessionIdentity? _identity;
-    private long _companyId;
+    private Guid _companyId;
     private PlatformAdminIdentity? _admin;
 
     public bool IsAuthenticated => _identity is not null || _admin is not null;
     public bool IsPlatformAdmin => _admin is not null;
-    public long? PlatformAdminId => _admin?.AdminId;
+    public Guid? PlatformAdminId => _admin?.AdminId;
     public string? PlatformAdminName => _admin?.Username;
 
-    public long CompanyId => _identity is null ? throw NotCompanyUser() : _companyId;
-    public long UserId => _identity?.UserId ?? throw NotCompanyUser();
+    public Guid CompanyId => _identity is null ? throw NotCompanyUser() : _companyId;
+    public Guid UserId => _identity?.UserId ?? throw NotCompanyUser();
     public string RoleCode => _identity?.RoleCode ?? (IsPlatformAdmin ? RoleCodes.PlatformAdmin : throw NotCompanyUser());
     public bool AllStores => IsPlatformAdmin || (_identity?.AllStores ?? throw NotCompanyUser());
     public bool MustChangePassword => _identity?.MustChangePassword ?? false;
-    public IReadOnlyList<long> StoreIds => _identity?.StoreIds ?? [];
+    public IReadOnlyList<Guid> StoreIds => _identity?.StoreIds ?? [];
 
     // Nullable views used by the database session (it must work before sign-in, e.g. during login).
-    public long? CompanyIdOrNull => _identity is null ? null : _companyId;
-    public long? UserIdOrNull => _identity?.UserId;
+    public Guid? CompanyIdOrNull => _identity is null ? null : _companyId;
+    public Guid? UserIdOrNull => _identity?.UserId;
 
-    public bool CanAccessStore(long storeId) => AllStores || StoreIds.Contains(storeId);
+    public bool CanAccessStore(Guid storeId) => AllStores || StoreIds.Contains(storeId);
 
     /// <summary>The caller as the user-creation rules see it.</summary>
     public Caller ToCaller() => new(IsPlatformAdmin, _identity?.RoleCode, AllStores, StoreIds.ToHashSet());
 
-    public void Set(long companyId, SessionIdentity identity)
+    public void Set(Guid companyId, SessionIdentity identity)
     {
         if (IsAuthenticated) throw new InvalidOperationException("Request identity is already set.");
         _companyId = companyId;
@@ -53,4 +53,4 @@ public sealed class RequestContext : ICurrentUser
 }
 
 /// <summary>A platform administrator. Has no company; works across companies on purpose.</summary>
-public sealed record PlatformAdminIdentity(long AdminId, string Username, string FullName);
+public sealed record PlatformAdminIdentity(Guid AdminId, string Username, string FullName);

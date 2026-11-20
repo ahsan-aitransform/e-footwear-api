@@ -32,14 +32,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         {
             e.ToTable("stores", "core");
             e.HasKey(x => new { x.CompanyId, x.Id });
-            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Id).ValueGeneratedOnAdd().HasDefaultValueSql("uuidv7()");
         });
 
         b.Entity<AppUser>(e =>
         {
             e.ToTable("users", "sec");
             e.HasKey(x => new { x.CompanyId, x.Id });
-            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Id).ValueGeneratedOnAdd().HasDefaultValueSql("uuidv7()");
             e.Property(x => x.CreatedAt).ValueGeneratedOnAdd().HasDefaultValueSql("now()");
         });
 

@@ -41,17 +41,21 @@ public sealed class SessionAuthenticationHandler(
                 return await AuthenticatePlatformAdminAsync(adminSecret);
 
             if (!AuthService.TryParseToken(raw, out var companyId, out var secret))
+            {
+                Logger.LogWarning("Request rejected: malformed bearer token (from {Ip})", Context.Connection.RemoteIpAddress);
                 return AuthenticateResult.Fail("Malformed token.");
+            }
 
             return await AuthenticateCompanyUserAsync(companyId, secret);
         }
         catch (DomainException ex) when (ex.Kind is ErrorKind.Unauthorized or ErrorKind.Forbidden)
         {
+            Logger.LogWarning("Request rejected: {Reason} (from {Ip})", ex.Message, Context.Connection.RemoteIpAddress);
             return AuthenticateResult.Fail(ex.Message);
         }
     }
 
-    private async Task<AuthenticateResult> AuthenticateCompanyUserAsync(long companyId, string secret)
+    private async Task<AuthenticateResult> AuthenticateCompanyUserAsync(Guid companyId, string secret)
     {
         auth.UseCompany(companyId);
         var identity = await auth.ValidateSessionAsync(companyId, secret, Context.RequestAborted);

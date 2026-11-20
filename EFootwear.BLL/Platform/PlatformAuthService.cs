@@ -1,5 +1,7 @@
 using EFootwear.BLL.Abstractions;
+using EFootwear.BLL.Common;
 using EFootwear.Domain.Common;
+using Microsoft.Extensions.Logging;
 
 namespace EFootwear.BLL.Platform;
 
@@ -9,7 +11,7 @@ public sealed record PlatformLoginRequest(string Username, string Password);
 public sealed record PlatformLoginResult(string AccessToken);
 
 /// <summary>BLL for platform administrator sign-in. Same protections as company login: Argon2, lockout, history.</summary>
-public sealed class PlatformAuthService(IPlatformAdminRepository repo, IPasswordHasher hasher)
+public sealed class PlatformAuthService(IPlatformAdminRepository repo, IPasswordHasher hasher, ILogger<PlatformAuthService> log)
 {
     public const string TokenPrefix = "admin.";
 
@@ -27,10 +29,22 @@ public sealed class PlatformAuthService(IPlatformAdminRepository repo, IPassword
 
         return outcome.Outcome switch
         {
-            "OK" => new PlatformLoginResult(TokenPrefix + outcome.SessionToken),
-            "LOCKED" => throw new DomainException(ErrorKind.Locked, $"Account is locked until {outcome.LockedUntil:u}."),
-            _ => throw new DomainException(ErrorKind.Unauthorized, "Invalid username or password."),
+            "OK" => Succeeded(outcome, req.Username, ip),
+            "LOCKED" => throw Refused(ErrorKind.Locked, $"Account is locked until {outcome.LockedUntil:u}.", "locked", req.Username, ip),
+            _ => throw Refused(ErrorKind.Unauthorized, "Invalid username or password.", "wrong password or unknown administrator", req.Username, ip),
         };
+    }
+
+    private PlatformLoginResult Succeeded(PlatformLoginOutcome outcome, string username, string? ip)
+    {
+        log.LogInformation("Platform administrator {AdminId} ({Username}) signed in (from {Ip})", outcome.AdminId, username, ip);
+        return new PlatformLoginResult(TokenPrefix + outcome.SessionToken);
+    }
+
+    private DomainException Refused(ErrorKind kind, string message, string why, string username, string? ip)
+    {
+        log.LogWarning("Platform sign-in refused for {Username}: {Reason} (from {Ip})", username, why, ip);
+        return new DomainException(kind, message);
     }
 
     /// <summary>Strips the "admin." prefix. Returns false when the token is not a platform token.</summary>

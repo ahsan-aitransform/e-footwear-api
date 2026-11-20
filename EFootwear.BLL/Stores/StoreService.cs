@@ -1,6 +1,6 @@
 namespace EFootwear.BLL.Stores;
 
-public sealed record StoreDto(long Id, string Code, string Name, bool IsHeadOffice, bool IsActive);
+public sealed record StoreDto(Guid Id, string Code, string Name, bool IsHeadOffice, bool IsActive);
 
 /// <summary>
 /// BLL contract for the DAL. The real SQL version lives in the DAL (EFootwear.DAL/Stores/StoreRepository.cs).
@@ -12,15 +12,15 @@ public interface IStoreRepository
     Task<IReadOnlyList<StoreDto>> ListAccessibleAsync(CancellationToken ct);
 
     /// <summary>All stores of a company, including head office. Platform administrators only.</summary>
-    Task<IReadOnlyList<StoreDto>> ListForCompanyAsync(long companyId, CancellationToken ct);
+    Task<IReadOnlyList<StoreDto>> ListForCompanyAsync(Guid companyId, CancellationToken ct);
 
-    Task<bool> CodeExistsAsync(long companyId, string code, CancellationToken ct);
+    Task<bool> CodeExistsAsync(Guid companyId, string code, CancellationToken ct);
 
     /// <summary>Creates a store. The schema trigger creates its stock, cash, sales and loss accounts.</summary>
-    Task<long> CreateAsync(long companyId, string code, string name, CancellationToken ct);
+    Task<Guid> CreateAsync(Guid companyId, string code, string name, CancellationToken ct);
 
     /// <summary>The given ids that are active, not head office, and belong to the company.</summary>
-    Task<IReadOnlyList<long>> ActiveSellingStoreIdsAsync(long companyId, IReadOnlyCollection<long> storeIds, CancellationToken ct);
+    Task<IReadOnlyList<Guid>> ActiveSellingStoreIdsAsync(Guid companyId, IReadOnlyCollection<Guid> storeIds, CancellationToken ct);
 }
 
 /// <summary>
