@@ -45,6 +45,22 @@ public sealed class ProductsController(ProductCatalogService productCatalogServi
         [FromQuery] PageQuery pageQuery, [FromQuery] ProductListFilter filter, CancellationToken cancellationToken) =>
         await productListingService.ListVariantRowsAsync(filter, pageQuery.ToPageRequest(), cancellationToken);
 
+    // The product pickers of three screens. One endpoint per screen because a screen's permission is what lets its picker work (permissions are ANDed).
+    [HttpGet(ApiRoutes.Products.LookupForLedger)]
+    [RequirePermission(PermissionCodes.Products.ProductLedger.View)]
+    public async Task<ActionResult<PagedResult<ProductLookupResponse>>> LookupForLedger([FromQuery] PageQuery pageQuery, CancellationToken cancellationToken) =>
+        await productListingService.LookupVariantsAsync(pageQuery.ToPageRequest(), cancellationToken);
+
+    [HttpGet(ApiRoutes.Products.LookupForDiscountsOnStores)]
+    [RequirePermission(PermissionCodes.Products.ProductDiscountsOnMultipleStores.View)]
+    public async Task<ActionResult<PagedResult<ProductLookupResponse>>> LookupForDiscountsOnStores([FromQuery] PageQuery pageQuery, CancellationToken cancellationToken) =>
+        await productListingService.LookupVariantsAsync(pageQuery.ToPageRequest(), cancellationToken);
+
+    [HttpGet(ApiRoutes.Products.LookupForLabels)]
+    [RequirePermission(PermissionCodes.Products.GenerateBarcodes.View)]
+    public async Task<ActionResult<PagedResult<ProductLookupResponse>>> LookupForLabels([FromQuery] PageQuery pageQuery, CancellationToken cancellationToken) =>
+        await productListingService.LookupVariantsAsync(pageQuery.ToPageRequest(), cancellationToken);
+
     [HttpGet(ApiRoutes.Products.ById)]
     [RequirePermission(PermissionCodes.Products.NewProduct.View)]
     public async Task<ActionResult<ProductDetailResponse>> Get(Guid productId, CancellationToken cancellationToken) =>

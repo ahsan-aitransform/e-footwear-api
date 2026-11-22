@@ -183,4 +183,25 @@ public class ProductReadModelsApiTests(ApiTestEnvironment environment)
         TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await priceOnly.GetAsync(Url(ApiRoutes.Products.StockByStore)));
         TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await priceOnly.GetAsync(Url(ApiRoutes.Products.Report)));
     }
+
+    [Fact]
+    public async Task The_product_pickers_find_active_sizes_by_text_without_prices_and_need_their_own_screen_permission()
+    {
+        var (scenario, lookups) = await NewCompanyAsync();
+        var alpha = await CreateAsync(scenario.OwnerClient, lookups, "Alpha Sandal", Variant("27", 500, 999), Variant("28", 500, 999));
+        await CreateAsync(scenario.OwnerClient, lookups, "Beta Boot", Variant("40", 700, 1500));
+        var ledgerUser = await scenario.SignInManagerWithPermissionsAsync(PermissionCodes.Products.ProductLedger.View);
+        var nobody = await scenario.SignInManagerWithPermissionsAsync();
+
+        var found = await OwnerCompanyScenario.ReadJsonAsync(await ledgerUser.GetAsync($"{Url(ApiRoutes.Products.LookupForLedger)}?searchText=alpha"));
+
+        Assert.Equal(2, found.GetProperty("totalCount").GetInt32());
+        var first = found.GetProperty("items")[0];
+        Assert.Equal("Alpha Sandal", first.GetProperty("productName").GetString());
+        Assert.Equal(alpha.ProductId, first.GetProperty("productId").GetGuid());
+        Assert.False(first.TryGetProperty("salePrice", out _) || first.TryGetProperty("purchasePrice", out _)); // a picker never shows prices
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await nobody.GetAsync(Url(ApiRoutes.Products.LookupForLedger)));
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await ledgerUser.GetAsync(Url(ApiRoutes.Products.LookupForLabels)));
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await ledgerUser.GetAsync(Url(ApiRoutes.Products.LookupForDiscountsOnStores)));
+    }
 }

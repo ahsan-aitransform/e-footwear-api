@@ -296,6 +296,9 @@ public static class ApiRoutes
         public const string VariantsSearch = "variants/search";
         public const string VariantsForDiscounts = "variants/for-discounts";
         public const string VariantsForDiscountRemoval = "variants/for-discount-removal";
+        public const string LookupForLedger = "lookup/for-ledger";
+        public const string LookupForDiscountsOnStores = "lookup/for-discounts-on-stores";
+        public const string LookupForLabels = "lookup/for-labels";
         public const string ById = "{productId:guid}";
         public const string NextCode = "next-code";
         public const string PriceHistory = "{productId:guid}/price-history";

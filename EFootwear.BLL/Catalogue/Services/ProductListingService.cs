@@ -24,6 +24,14 @@ public sealed class ProductListingService(IProductListingRepository productListi
         return productListingRepository.ListVariantRowsAsync(filter, pageRequest.Normalized(), cancellationToken);
     }
 
+    /// <summary>The product picker of the screens that work on one product or one size: active sizes found by name, code or barcode, without prices.</summary>
+    public async Task<PagedResult<ProductLookupResponse>> LookupVariantsAsync(PageRequest pageRequest, CancellationToken cancellationToken)
+    {
+        var page = await productListingRepository.ListVariantRowsAsync(new ProductListFilter(OnlyActive: true), pageRequest.Normalized(), cancellationToken);
+        var items = page.Items.Select(row => new ProductLookupResponse(row.ProductId, row.VariantId, row.ProductCode, row.ProductName, row.Barcode, row.SizeCode, row.ColorName, row.BrandName)).ToList();
+        return new PagedResult<ProductLookupResponse>(items, page.PageNumber, page.PageSize, page.TotalItemCount);
+    }
+
     public async Task<VariantPriceLookupResponse> GetPriceLookupAsync(string? barcode, Guid? storeId, CancellationToken cancellationToken)
     {
         var normalizedBarcode = VariantRules.NormalizeBarcode(barcode);
