@@ -10,26 +10,30 @@ namespace E_Footwear_Api.Middleware;
 /// </summary>
 public sealed class LogUserEnrichmentMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext http, RequestContext me, IDiagnosticContext diagnostics)
+    private const string PlatformAdministratorIdProperty = "PlatformAdminId";
+    private const string CompanyIdProperty = "CompanyId";
+    private const string UserIdProperty = "UserId";
+
+    public async Task InvokeAsync(HttpContext httpContext, RequestContext requestContext, IDiagnosticContext diagnosticContext)
     {
-        if (!me.IsAuthenticated)
+        if (!requestContext.IsAuthenticated)
         {
-            await next(http);
+            await next(httpContext);
             return;
         }
 
-        if (me.IsPlatformAdmin)
+        if (requestContext.IsPlatformAdministrator)
         {
-            diagnostics.Set("PlatformAdminId", me.PlatformAdminId);
-            using (LogContext.PushProperty("PlatformAdminId", me.PlatformAdminId))
-                await next(http);
+            diagnosticContext.Set(PlatformAdministratorIdProperty, requestContext.PlatformAdministratorId);
+            using (LogContext.PushProperty(PlatformAdministratorIdProperty, requestContext.PlatformAdministratorId))
+                await next(httpContext);
             return;
         }
 
-        diagnostics.Set("CompanyId", me.CompanyId);
-        diagnostics.Set("UserId", me.UserId);
-        using (LogContext.PushProperty("CompanyId", me.CompanyId))
-        using (LogContext.PushProperty("UserId", me.UserId))
-            await next(http);
+        diagnosticContext.Set(CompanyIdProperty, requestContext.CompanyId);
+        diagnosticContext.Set(UserIdProperty, requestContext.UserId);
+        using (LogContext.PushProperty(CompanyIdProperty, requestContext.CompanyId))
+        using (LogContext.PushProperty(UserIdProperty, requestContext.UserId))
+            await next(httpContext);
     }
 }

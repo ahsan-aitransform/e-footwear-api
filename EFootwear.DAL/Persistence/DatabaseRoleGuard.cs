@@ -10,25 +10,26 @@ namespace EFootwear.DAL.Persistence;
 /// </summary>
 public sealed class DatabaseRoleGuard(NpgsqlDataSource dataSource, ILogger<DatabaseRoleGuard> logger) : IHostedService
 {
-    public async Task StartAsync(CancellationToken ct)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        await using var conn = await dataSource.OpenConnectionAsync(ct);
-        await using var cmd = new NpgsqlCommand(
-            "select current_user, rolsuper, rolbypassrls from pg_roles where rolname = current_user", conn);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-        var (name, isSuper, bypass) = (reader.GetString(0), reader.GetBoolean(1), reader.GetBoolean(2));
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            "select current_user, rolsuper, rolbypassrls from pg_roles where rolname = current_user", connection);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        var (roleName, isSuperuser, bypassesRowLevelSecurity) =
+            (reader.GetString(0), reader.GetBoolean(1), reader.GetBoolean(2));
 
-        if (isSuper || bypass)
+        if (isSuperuser || bypassesRowLevelSecurity)
         {
-            logger.LogCritical("Database role {Role} is a superuser or bypasses row-level security. Refusing to start.", name);
+            logger.LogCritical("Database role {RoleName} is a superuser or bypasses row-level security. Refusing to start.", roleName);
             throw new InvalidOperationException(
-                $"Database role '{name}' is a superuser or bypasses row-level security. " +
+                $"Database role '{roleName}' is a superuser or bypasses row-level security. " +
                 "Connect as a login role that is a member of pos_app (see db/create_app_login.sql).");
         }
 
-        logger.LogInformation("Database role {Role} verified: not a superuser, row-level security applies.", name);
+        logger.LogInformation("Database role {RoleName} verified: not a superuser, row-level security applies.", roleName);
     }
 
-    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

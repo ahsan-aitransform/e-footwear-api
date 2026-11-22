@@ -1,32 +1,42 @@
 using System.Threading.RateLimiting;
 using E_Footwear_Api.Authentication;
+using E_Footwear_Api.Authorization;
 using E_Footwear_Api.Cli;
+using E_Footwear_Api.Constants;
 using E_Footwear_Api.Middleware;
+using E_Footwear_Api.Routing;
 using EFootwear.DAL;
+using EFootwear.Domain.Security;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Serilog;
 
 namespace E_Footwear_Api
 {
     public class Program
     {
-        public static int Main(string[] args)
+        private const string ApplicationName = "E-Footwear-Api";
+        private const string SwaggerDocumentTitle = "E-Footwear API v1";
+
+        public static int Main(string[] arguments)
         {
             // Operator commands run without starting the web server, e.g.:
             //   dotnet run --project E-Footwear-Api -- create-platform-admin <username> "<full name>"
-            if (args.Length > 0 && args[0] == "create-platform-admin")
-                return PlatformAdminCli.RunAsync(args, WebApplication.CreateBuilder(args).Configuration).GetAwaiter().GetResult();
+            //   dotnet run --project E-Footwear-Api -- migrate
+            //   dotnet run --project E-Footwear-Api -- generate-permission-codes
+            if (CommandLineCommands.IsCommand(arguments))
+                return CommandLineCommands.RunAsync(arguments).GetAwaiter().GetResult();
 
             // A minimal logger first, so a failure while building the app (bad config, no database) is still logged.
             Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
             try
             {
-                Run(args);
+                Run(arguments);
                 return 0;
             }
-            catch (Exception ex) when (ex is not HostAbortedException)
+            catch (Exception exception) when (exception is not HostAbortedException)
             {
-                Log.Fatal(ex, "The API stopped because of an unhandled error");
+                Log.Fatal(exception, "The API stopped because of an unhandled error");
                 return 1;
             }
             finally
@@ -35,43 +45,55 @@ namespace E_Footwear_Api
             }
         }
 
-        private static void Run(string[] args)
+        private static void Run(string[] arguments)
         {
-            var builder = WebApplication.CreateBuilder(args);
+            var builder = WebApplication.CreateBuilder(arguments);
 
             // Logging: levels, console and rolling file are configured in appsettings ("Serilog" section).
             // Every log line carries the correlation id and, once signed in, the company and user ids.
-            builder.Host.UseSerilog((ctx, services, cfg) => cfg
-                .ReadFrom.Configuration(ctx.Configuration)
+            builder.Host.UseSerilog((hostContext, services, loggerConfiguration) => loggerConfiguration
+                .ReadFrom.Configuration(hostContext.Configuration)
                 .ReadFrom.Services(services)
                 .Enrich.FromLogContext()
-                .Enrich.WithProperty("Application", "E-Footwear-Api")
-                .Enrich.WithProperty("Environment", ctx.HostingEnvironment.EnvironmentName));
+                .Enrich.WithProperty("Application", ApplicationName)
+                .Enrich.WithProperty("Environment", hostContext.HostingEnvironment.EnvironmentName));
 
             builder.Services.AddControllers();
-            builder.Services.AddOpenApi(o => o.AddDocumentTransformer<BearerSecurityTransformer>());
+            builder.Services.AddOpenApi(options => options.AddDocumentTransformer<BearerSecurityTransformer>());
             builder.Services.AddDal(builder.Configuration);
 
-            builder.Services.AddAuthentication(SessionAuth.Scheme)
-                .AddScheme<AuthenticationSchemeOptions, SessionAuthenticationHandler>(SessionAuth.Scheme, null);
-            builder.Services.AddAuthorization();
+            builder.Services.AddAuthentication(SessionAuthenticationDefaults.Scheme)
+                .AddScheme<AuthenticationSchemeOptions, SessionAuthenticationHandler>(SessionAuthenticationDefaults.Scheme, null);
+            builder.Services.AddAuthorizationBuilder()
+                .AddPolicy(AuthorizationPolicies.PlatformAdministratorOnly, policy => policy
+                    .RequireAuthenticatedUser()
+                    .RequireRole(RoleCodes.PlatformAdmin))
+                .AddPolicy(AuthorizationPolicies.CompanyUserOnly, policy => policy
+                    .RequireAuthenticatedUser()
+                    .RequireClaim(SessionAuthenticationDefaults.CompanyIdClaimType));
+            builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
 
             builder.Services.AddExceptionHandler<ApiExceptionHandler>();
             builder.Services.AddProblemDetails();
 
-            // Slows password guessing: 10 login attempts per minute per client address.
-            builder.Services.AddRateLimiter(o =>
+            var loginAttemptsPerWindow = builder.Configuration.GetValue(
+                LoginRateLimit.AttemptsPerWindowConfigurationKey, LoginRateLimit.AttemptsPerWindow);
+            builder.Services.AddRateLimiter(options =>
             {
-                o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-                o.OnRejected = (context, _) =>
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.OnRejected = (context, _) =>
                 {
-                    Log.Warning("Rate limit hit on {Path} from {Ip}", context.HttpContext.Request.Path,
+                    Log.Warning("Rate limit hit on {Path} from {ClientIpAddress}", context.HttpContext.Request.Path,
                                 context.HttpContext.Connection.RemoteIpAddress);
                     return ValueTask.CompletedTask;
                 };
-                o.AddPolicy("login", http => RateLimitPartition.GetFixedWindowLimiter(
-                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+                options.AddPolicy(LoginRateLimit.PolicyName, httpContext => RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? LoginRateLimit.UnknownClientAddress,
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = loginAttemptsPerWindow,
+                        Window = LoginRateLimit.Window,
+                    }));
             });
 
             var app = builder.Build();
@@ -86,29 +108,32 @@ namespace E_Footwear_Api
             //  7. authentication     - reads the token and fills RequestContext
             //  8. log enrichment     - adds company / user ids to the log lines that follow
             //  9. must-change-password guard - a temporary password allows only /auth endpoints
-            // 10. authorization      - enforces [Authorize]
+            // 10. authorization      - enforces [Authorize] and the policies
             app.UseMiddleware<CorrelationIdMiddleware>();
-            app.UseSerilogRequestLogging(o =>
+            app.UseSerilogRequestLogging(options =>
             {
-                o.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0} ms";
+                options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0} ms";
                 // Health checks and API docs are noise: log them only at the lowest level.
-                o.GetLevel = (http, _, ex) =>
-                    ex is not null || http.Response.StatusCode >= 500 ? Serilog.Events.LogEventLevel.Error
-                    : http.Request.Path.StartsWithSegments("/health") || http.Request.Path.StartsWithSegments("/openapi")
-                        || http.Request.Path.StartsWithSegments("/swagger") ? Serilog.Events.LogEventLevel.Verbose
+                options.GetLevel = (httpContext, _, exception) =>
+                    exception is not null || httpContext.Response.StatusCode >= StatusCodes.Status500InternalServerError
+                        ? Serilog.Events.LogEventLevel.Error
+                    : httpContext.Request.Path.StartsWithSegments(ApiRoutes.HealthCheck)
+                        || httpContext.Request.Path.StartsWithSegments("/openapi")
+                        || httpContext.Request.Path.StartsWithSegments("/" + ApiRoutes.SwaggerRoutePrefix)
+                        ? Serilog.Events.LogEventLevel.Verbose
                     : Serilog.Events.LogEventLevel.Information;
-                o.EnrichDiagnosticContext = (diag, http) =>
-                    diag.Set("ClientIp", http.Connection.RemoteIpAddress?.ToString());
+                options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+                    diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString());
             });
             app.UseExceptionHandler();
 
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
-                app.UseSwaggerUI(o =>
+                app.UseSwaggerUI(options =>
                 {
-                    o.SwaggerEndpoint("/openapi/v1.json", "E-Footwear API v1");
-                    o.RoutePrefix = "swagger";
+                    options.SwaggerEndpoint(ApiRoutes.OpenApiDocument, SwaggerDocumentTitle);
+                    options.RoutePrefix = ApiRoutes.SwaggerRoutePrefix;
                 });
             }
             else
@@ -122,9 +147,9 @@ namespace E_Footwear_Api
             app.UseMiddleware<MustChangePasswordGuard>();
             app.UseAuthorization();
             app.MapControllers();
-            app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+            app.MapGet(ApiRoutes.HealthCheck, () => Results.Ok(new { status = "ok" }));
 
-            Log.Information("Starting E-Footwear API in {Environment}", app.Environment.EnvironmentName);
+            Log.Information("Starting {Application} in {Environment}", ApplicationName, app.Environment.EnvironmentName);
             app.Run();
         }
     }

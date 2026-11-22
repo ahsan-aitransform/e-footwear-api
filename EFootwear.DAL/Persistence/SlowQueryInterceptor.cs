@@ -10,34 +10,36 @@ namespace EFootwear.DAL.Persistence;
 /// </summary>
 public sealed class SlowQueryInterceptor(ILogger<SlowQueryInterceptor> logger) : DbCommandInterceptor
 {
-    private static readonly TimeSpan Threshold = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan SlowQueryThreshold = TimeSpan.FromMilliseconds(500);
+    private const int LoggedSqlMaximumLength = 300;
 
     public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
-        DbDataReader result, CancellationToken ct = default)
+        DbDataReader result, CancellationToken cancellationToken = default)
     {
-        Check(command, eventData);
-        return base.ReaderExecutedAsync(command, eventData, result, ct);
+        LogWhenSlow(command, eventData);
+        return base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
     }
 
     public override ValueTask<int> NonQueryExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
-        int result, CancellationToken ct = default)
+        int result, CancellationToken cancellationToken = default)
     {
-        Check(command, eventData);
-        return base.NonQueryExecutedAsync(command, eventData, result, ct);
+        LogWhenSlow(command, eventData);
+        return base.NonQueryExecutedAsync(command, eventData, result, cancellationToken);
     }
 
     public override ValueTask<object?> ScalarExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
-        object? result, CancellationToken ct = default)
+        object? result, CancellationToken cancellationToken = default)
     {
-        Check(command, eventData);
-        return base.ScalarExecutedAsync(command, eventData, result, ct);
+        LogWhenSlow(command, eventData);
+        return base.ScalarExecutedAsync(command, eventData, result, cancellationToken);
     }
 
-    private void Check(DbCommand command, CommandExecutedEventData eventData)
+    private void LogWhenSlow(DbCommand command, CommandExecutedEventData eventData)
     {
-        if (eventData.Duration < Threshold) return;
+        if (eventData.Duration < SlowQueryThreshold) return;
         var sql = command.CommandText.ReplaceLineEndings(" ");
-        logger.LogWarning("Slow database command: {ElapsedMs} ms. SQL: {Sql}",
-            (long)eventData.Duration.TotalMilliseconds, sql.Length > 300 ? sql[..300] + "..." : sql);
+        logger.LogWarning("Slow database command: {ElapsedMilliseconds} ms. SQL: {Sql}",
+            (long)eventData.Duration.TotalMilliseconds,
+            sql.Length > LoggedSqlMaximumLength ? sql[..LoggedSqlMaximumLength] + "..." : sql);
     }
 }

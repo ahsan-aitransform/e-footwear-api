@@ -11,55 +11,72 @@ namespace EFootwear.DAL.Security;
 /// </summary>
 public sealed class Argon2PasswordHasher : IPasswordHasher
 {
-    private const int MemoryKb = 19456;   // OWASP minimum for Argon2id: 19 MiB, 2 iterations, 1 lane
-    private const int Iterations = 2;
-    private const int Lanes = 1;
-    private const int SaltBytes = 16;
-    private const int HashBytes = 32;
+    private const int MemorySizeInKibibytes = 19456;   // OWASP minimum for Argon2id: 19 MiB, 2 iterations, 1 lane
+    private const int IterationCount = 2;
+    private const int ParallelLaneCount = 1;
+    private const int SaltLengthInBytes = 16;
+    private const int HashLengthInBytes = 32;
+    private const string AlgorithmName = "argon2id";
+    private const int EncodedPartCount = 5;
+    private const char ParameterSeparator = '$';
+    private const string DummyPassword = "dummy-password";
 
-    private static readonly Lazy<string> DummyHash = new(() => new Argon2PasswordHasher().Hash("dummy-password"));
+    private static readonly Lazy<string> DummyHash = new(() => new Argon2PasswordHasher().Hash(DummyPassword));
 
     public string Hash(string password)
     {
-        var salt = RandomNumberGenerator.GetBytes(SaltBytes);
-        var hash = Compute(password, salt, MemoryKb, Iterations, Lanes, HashBytes);
-        return $"$argon2id$v=19$m={MemoryKb},t={Iterations},p={Lanes}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
+        var salt = RandomNumberGenerator.GetBytes(SaltLengthInBytes);
+        var hash = ComputeHash(password, salt, MemorySizeInKibibytes, IterationCount, ParallelLaneCount, HashLengthInBytes);
+        return $"${AlgorithmName}$v=19$m={MemorySizeInKibibytes},t={IterationCount},p={ParallelLaneCount}" +
+               $"${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
     }
 
     public bool Verify(string password, string encodedHash)
     {
-        if (!TryParse(encodedHash, out var m, out var t, out var p, out var salt, out var expected)) return false;
-        var actual = Compute(password, salt, m, t, p, expected.Length);
-        return CryptographicOperations.FixedTimeEquals(actual, expected);
+        if (!TryParseEncodedHash(encodedHash, out var memorySize, out var iterations, out var lanes, out var salt, out var expectedHash))
+            return false;
+        var actualHash = ComputeHash(password, salt, memorySize, iterations, lanes, expectedHash.Length);
+        return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
     }
 
     public void BurnTime(string password) => Verify(password, DummyHash.Value);
 
-    private static byte[] Compute(string password, byte[] salt, int memoryKb, int iterations, int lanes, int length)
+    private static byte[] ComputeHash(string password, byte[] salt, int memorySize, int iterations, int lanes, int hashLength)
     {
-        using var argon = new Argon2id(Encoding.UTF8.GetBytes(password))
+        using var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password))
         {
             Salt = salt,
-            MemorySize = memoryKb,
+            MemorySize = memorySize,
             Iterations = iterations,
             DegreeOfParallelism = lanes,
         };
-        return argon.GetBytes(length);
+        return argon2.GetBytes(hashLength);
     }
 
-    private static bool TryParse(string s, out int m, out int t, out int p, out byte[] salt, out byte[] hash)
+    private static bool TryParseEncodedHash(string encodedHash, out int memorySize, out int iterations, out int lanes,
+                                            out byte[] salt, out byte[] hash)
     {
-        m = t = p = 0; salt = hash = [];
-        var parts = s.Split('$', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length != 5 || parts[0] != "argon2id") return false;
-        foreach (var kv in parts[2].Split(','))
+        memorySize = iterations = lanes = 0;
+        salt = hash = [];
+        var parts = encodedHash.Split(ParameterSeparator, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != EncodedPartCount || parts[0] != AlgorithmName) return false;
+        foreach (var parameter in parts[2].Split(','))
         {
-            var pair = kv.Split('=');
-            if (pair.Length != 2 || !int.TryParse(pair[1], out var v)) return false;
-            switch (pair[0]) { case "m": m = v; break; case "t": t = v; break; case "p": p = v; break; }
+            var nameAndValue = parameter.Split('=');
+            if (nameAndValue.Length != 2 || !int.TryParse(nameAndValue[1], out var value)) return false;
+            switch (nameAndValue[0])
+            {
+                case "m": memorySize = value; break;
+                case "t": iterations = value; break;
+                case "p": lanes = value; break;
+            }
         }
-        if (m <= 0 || t <= 0 || p <= 0) return false;
-        try { salt = Convert.FromBase64String(parts[3]); hash = Convert.FromBase64String(parts[4]); }
+        if (memorySize <= 0 || iterations <= 0 || lanes <= 0) return false;
+        try
+        {
+            salt = Convert.FromBase64String(parts[3]);
+            hash = Convert.FromBase64String(parts[4]);
+        }
         catch (FormatException) { return false; }
         return salt.Length > 0 && hash.Length > 0;
     }

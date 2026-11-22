@@ -11,17 +11,20 @@ public sealed class CorrelationIdMiddleware(RequestDelegate next)
 {
     public const string Header = "X-Correlation-Id";
     public const string ItemKey = "CorrelationId";
+    public const string LogPropertyName = "CorrelationId";
+    private const int MaximumLength = 64;
 
-    public async Task InvokeAsync(HttpContext http)
+    public async Task InvokeAsync(HttpContext httpContext)
     {
-        var id = http.Request.Headers[Header].ToString();
+        var correlationId = httpContext.Request.Headers[Header].ToString();
         // Accept only a short, harmless value; anything else would let a client forge or flood log lines.
-        if (id.Length is 0 or > 64 || !id.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
-            id = Guid.NewGuid().ToString("N");
+        if (correlationId.Length is 0 or > MaximumLength
+            || !correlationId.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_'))
+            correlationId = Guid.NewGuid().ToString("N");
 
-        http.Items[ItemKey] = id;
-        http.Response.Headers[Header] = id;
-        using (LogContext.PushProperty("CorrelationId", id))
-            await next(http);
+        httpContext.Items[ItemKey] = correlationId;
+        httpContext.Response.Headers[Header] = correlationId;
+        using (LogContext.PushProperty(LogPropertyName, correlationId))
+            await next(httpContext);
     }
 }

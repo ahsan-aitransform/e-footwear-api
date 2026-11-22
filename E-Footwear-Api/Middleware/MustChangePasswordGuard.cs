@@ -1,5 +1,7 @@
+using E_Footwear_Api.Errors;
+using E_Footwear_Api.Routing;
 using EFootwear.BLL.Common;
-using Microsoft.AspNetCore.Mvc;
+using EFootwear.Domain.Common;
 
 namespace E_Footwear_Api.Middleware;
 
@@ -10,23 +12,20 @@ namespace E_Footwear_Api.Middleware;
 /// </summary>
 public sealed class MustChangePasswordGuard(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext http, RequestContext me)
-    {
-        var path = http.Request.Path;
-        var allowed = path.StartsWithSegments("/api/v1/auth", StringComparison.OrdinalIgnoreCase);
+    private static readonly string AllowedPathPrefix = "/" + ApiRoutes.Authentication.Root;
 
-        if (me.IsAuthenticated && !me.IsPlatformAdmin && me.MustChangePassword && !allowed)
+    public async Task InvokeAsync(HttpContext httpContext, RequestContext requestContext)
+    {
+        var isAllowedPath = httpContext.Request.Path.StartsWithSegments(AllowedPathPrefix, StringComparison.OrdinalIgnoreCase);
+
+        if (requestContext.IsAuthenticated && !requestContext.IsPlatformAdministrator
+            && requestContext.MustChangePassword && !isAllowedPath)
         {
-            http.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await http.Response.WriteAsJsonAsync(new ProblemDetails
-            {
-                Status = StatusCodes.Status403Forbidden,
-                Title = "Password change required",
-                Detail = "You must change your temporary password before using the system.",
-                Instance = path,
-            });
+            await ProblemDetailsWriter.WriteAsync(httpContext, StatusCodes.Status403Forbidden, "Password change required",
+                "You must change your temporary password before using the system.", ErrorCodes.PasswordChangeRequired,
+                httpContext.RequestAborted);
             return;
         }
-        await next(http);
+        await next(httpContext);
     }
 }

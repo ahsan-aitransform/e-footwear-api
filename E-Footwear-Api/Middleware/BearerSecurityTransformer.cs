@@ -1,3 +1,4 @@
+using E_Footwear_Api.Authorization;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
@@ -10,23 +11,25 @@ namespace E_Footwear_Api.Middleware;
 /// </summary>
 public sealed class BearerSecurityTransformer : IOpenApiDocumentTransformer
 {
-    private const string SchemeName = "Bearer";
+    private const string SecuritySchemeName = HttpAuthorizationScheme.Bearer;
+    private const string SecuritySchemeDescription = "Authorize here";
 
-    public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken ct)
+    public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context,
+                               CancellationToken cancellationToken)
     {
         document.Components ??= new OpenApiComponents();
         document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
-        document.Components.SecuritySchemes[SchemeName] = new OpenApiSecurityScheme
+        document.Components.SecuritySchemes[SecuritySchemeName] = new OpenApiSecurityScheme
         {
             Type = SecuritySchemeType.Http,
-            Scheme = "bearer",
-            Description = "Authorize here",
+            Scheme = HttpAuthorizationScheme.Bearer.ToLowerInvariant(),
+            Description = SecuritySchemeDescription,
         };
 
         document.Security ??= [];
         document.Security.Add(new OpenApiSecurityRequirement
         {
-            [new OpenApiSecuritySchemeReference(SchemeName, document)] = [],
+            [new OpenApiSecuritySchemeReference(SecuritySchemeName, document)] = [],
         });
         return Task.CompletedTask;
     }

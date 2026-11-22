@@ -6,5 +6,5 @@ namespace EFootwear.BLL.Abstractions;
 /// </summary>
 public interface IUnitOfWork
 {
-    Task CommitAsync(CancellationToken ct = default);
+    Task CommitAsync(CancellationToken cancellationToken = default);
 }
