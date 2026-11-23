@@ -356,5 +356,28 @@ public static class ApiRoutes
         public const string ById = "{priceBandId:guid}";
     }
 
+    /// <summary>Staff profiles, salary terms and the company-wide list of staff transfers (docx 3.1 staff, Part 16.1). Staff transfers themselves are posted through <see cref="Parties"/>.</summary>
+    public static class Staff
+    {
+        public const string Root = VersionPrefix + "/staff";
+        public const string Transfers = "transfers";
+        public const string StaffById = "{partyId:guid}";
+        public const string SalaryTerms = "{partyId:guid}/salary-terms";
+    }
+
+    /// <summary>The monthly salary sheet, adjustments and salary payments (docx 3.8, 3.9; Part 16.3) and the Staff Salary / Salary Outstanding reports.</summary>
+    public static class Payroll
+    {
+        public const string Root = VersionPrefix + "/payroll";
+        public const string Sheet = "sheets";
+        public const string PrepareSheet = "sheets/prepare";
+        public const string ApproveSheet = "sheets/{runId:guid}/approve";
+        public const string Adjustments = "adjustments";
+        public const string LinePayments = "lines/{lineId:guid}/payments";
+        public const string Payments = "payments";
+        public const string StaffSalaryReport = "reports/staff-salary";
+        public const string SalaryOutstandingReport = "reports/salary-outstanding";
+    }
+
     // <api-routes:end> (add one nested class per new controller above this line)
 }

@@ -29,6 +29,12 @@ using EFootwear.DAL.Accounting.Repositories;
 using EFootwear.DAL.CashManagement.Repositories;
 using EFootwear.DAL.MasterData.Repositories;
 using EFootwear.DAL.Parties.Repositories;
+using EFootwear.BLL.HumanResources.Abstractions;
+using EFootwear.BLL.HumanResources.Services;
+using EFootwear.BLL.Payroll.Abstractions;
+using EFootwear.BLL.Payroll.Services;
+using EFootwear.DAL.HumanResources.Repositories;
+using EFootwear.DAL.Payroll.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -218,9 +224,16 @@ public static class DependencyInjection
         // <module-registrations:cash-management:end>
 
         // --- HumanResources ---
+        services.AddScoped<IStaffRepository, StaffRepository>();
+        services.AddScoped<StaffDirectoryService>();
+        services.AddScoped<StaffSalaryService>();
         // <module-registrations:human-resources:end>
 
         // --- Payroll ---
+        services.AddScoped<IPayrollRepository, PayrollRepository>();
+        services.AddScoped<PayrollSheetService>();
+        services.AddScoped<IPayrollReportRepository, PayrollReportRepository>();
+        services.AddScoped<PayrollReportService>();
         // <module-registrations:payroll:end>
 
         // --- Commissions ---
