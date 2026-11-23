@@ -35,6 +35,9 @@ using EFootwear.BLL.Payroll.Abstractions;
 using EFootwear.BLL.Payroll.Services;
 using EFootwear.DAL.HumanResources.Repositories;
 using EFootwear.DAL.Payroll.Repositories;
+using EFootwear.BLL.Sales.Abstractions;
+using EFootwear.BLL.Sales.Services;
+using EFootwear.DAL.Sales.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -193,6 +196,12 @@ public static class DependencyInjection
         // <module-registrations:inventory:end>
 
         // --- Sales ---
+        services.AddScoped<ISaleInvoicePostingRepository, SaleInvoicePostingRepository>();
+        services.AddScoped<ISaleInvoiceReadRepository, SaleInvoiceReadRepository>();
+        services.AddScoped<SalePrintContextService>();
+        services.AddScoped<SaleEntryService>();
+        services.AddScoped<SaleInvoiceQueryService>();
+        services.AddScoped<SaleInvoicePostingService>();
         // <module-registrations:sales:end>
 
         // --- Purchases ---

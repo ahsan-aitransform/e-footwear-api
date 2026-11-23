@@ -379,5 +379,59 @@ public static class ApiRoutes
         public const string SalaryOutstandingReport = "reports/salary-outstanding";
     }
 
+    /// <summary>New Sale, Sale Return, Exchange Invoice, View Invoices and View Deleted Invoices (docx 5.1 to 5.3, 5.13; Parts 11 and 12). Every screen has its own routes because the screens are granted separately.</summary>
+    public static class Sales
+    {
+        public const string Root = VersionPrefix + "/sales";
+
+        // shared tails, repeated under each screen prefix
+        public const string EntryContextTail = "entry-context";
+        public const string ItemByBarcodeTail = "items/by-barcode";
+        public const string ItemSearchTail = "items/search";
+        public const string ItemPictureTail = "items/{productId:guid}/picture";
+        public const string CustomersTail = "customers";
+        public const string SalesmenTail = "salesmen";
+        public const string PaymentAccountsTail = "payment-accounts";
+        public const string PosTerminalsTail = "pos-terminals";
+        public const string InvoiceByNumberTail = "invoice-by-number";
+
+        public const string NewSale = "new-sale";
+        public const string NewSaleEntryContext = NewSale + "/" + EntryContextTail;
+        public const string NewSaleItemByBarcode = NewSale + "/" + ItemByBarcodeTail;
+        public const string NewSaleItemSearch = NewSale + "/" + ItemSearchTail;
+        public const string NewSaleItemPicture = NewSale + "/" + ItemPictureTail;
+        public const string NewSaleCustomers = NewSale + "/" + CustomersTail;
+        public const string NewSaleSalesmen = NewSale + "/" + SalesmenTail;
+        public const string NewSalePaymentAccounts = NewSale + "/" + PaymentAccountsTail;
+        public const string NewSalePosTerminals = NewSale + "/" + PosTerminalsTail;
+
+        public const string SaleReturns = "sale-returns";
+        public const string SaleReturnEntryContext = SaleReturns + "/" + EntryContextTail;
+        public const string SaleReturnInvoiceByNumber = SaleReturns + "/" + InvoiceByNumberTail;
+
+        public const string Exchanges = "exchanges";
+        public const string ExchangeEntryContext = Exchanges + "/" + EntryContextTail;
+        public const string ExchangeInvoiceByNumber = Exchanges + "/" + InvoiceByNumberTail;
+        public const string ExchangeItemByBarcode = Exchanges + "/" + ItemByBarcodeTail;
+        public const string ExchangeItemSearch = Exchanges + "/" + ItemSearchTail;
+        public const string ExchangeItemPicture = Exchanges + "/" + ItemPictureTail;
+        public const string ExchangeCustomers = Exchanges + "/" + CustomersTail;
+        public const string ExchangeSalesmen = Exchanges + "/" + SalesmenTail;
+        public const string ExchangePaymentAccounts = Exchanges + "/" + PaymentAccountsTail;
+        public const string ExchangePosTerminals = Exchanges + "/" + PosTerminalsTail;
+
+        public const string Invoices = "invoices";
+        public const string InvoiceById = Invoices + "/{invoiceId:guid}";
+        public const string InvoicePrintDocument = InvoiceById + "/print-document";
+        public const string InvoiceVoid = InvoiceById + "/void";
+        public const string InvoiceVoidAndReenter = InvoiceById + "/void-and-reenter";
+        public const string InvoiceCustomers = Invoices + "/" + CustomersTail;
+        public const string InvoiceSalesmen = Invoices + "/" + SalesmenTail;
+
+        public const string DeletedInvoices = "deleted-invoices";
+        public const string DeletedInvoiceById = DeletedInvoices + "/{invoiceId:guid}";
+        public const string DeletedInvoicePrintDocument = DeletedInvoiceById + "/print-document";
+    }
+
     // <api-routes:end> (add one nested class per new controller above this line)
 }
