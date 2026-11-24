@@ -433,5 +433,63 @@ public static class ApiRoutes
         public const string DeletedInvoicePrintDocument = DeletedInvoiceById + "/print-document";
     }
 
+    public static class Inventory
+    {
+        public const string Root = VersionPrefix + "/inventory";
+
+        // shared tails
+        public const string ItemByBarcodeTail = "items/by-barcode";
+        public const string ItemSearchTail = "items/search";
+
+        public const string StockAdjustments = "stock-adjustments";
+        public const string StockAdjustmentById = StockAdjustments + "/{adjustmentId:guid}";
+        public const string StockAdjustmentVoid = StockAdjustmentById + "/void";
+        public const string StockAdjustmentItemByBarcode = StockAdjustments + "/" + ItemByBarcodeTail;
+        public const string StockAdjustmentItemSearch = StockAdjustments + "/" + ItemSearchTail;
+
+        public const string NonZeroStock = "non-zero-stock";
+        public const string NonZeroStockCountUpdates = NonZeroStock + "/count-updates";
+        public const string NonZeroStockCountFilePreview = NonZeroStock + "/count-file-preview";
+
+        public const string StockAudits = "stock-audits";
+        public const string StockAuditById = StockAudits + "/{auditId:guid}";
+        public const string StockAuditScans = StockAuditById + "/scans";
+        public const string StockAuditPost = StockAuditById + "/post";
+
+        public const string ProductClaims = "product-claims";
+        public const string ProductClaimItemByBarcode = ProductClaims + "/" + ItemByBarcodeTail;
+        public const string ProductClaimItemSearch = ProductClaims + "/" + ItemSearchTail;
+
+        public const string ClaimApprovals = "claim-approvals";
+        public const string ClaimApprovalApprove = ClaimApprovals + "/approve";
+        public const string ClaimApprovalReject = ClaimApprovals + "/{claimId:guid}/reject";
+
+        public const string StockTransfers = "stock-transfers";
+        public const string StockTransferById = StockTransfers + "/{transferId:guid}";
+        public const string StockTransferSendScans = StockTransferById + "/send-scans";
+        public const string StockTransferDispatch = StockTransferById + "/dispatch";
+        public const string StockTransferCancel = StockTransferById + "/cancel";
+        public const string StockTransferMulti = StockTransfers + "/multi";
+        public const string StockTransferStores = StockTransfers + "/stores";
+        public const string StockTransferItemByBarcode = StockTransfers + "/" + ItemByBarcodeTail;
+        public const string StockTransferItemSearch = StockTransfers + "/" + ItemSearchTail;
+
+        public const string StockTransferReceiving = "stock-transfer-receiving";
+        public const string StockTransferReceivingById = StockTransferReceiving + "/{transferId:guid}";
+        public const string StockTransferReceivingScans = StockTransferReceivingById + "/scans";
+        public const string StockTransferReceivingComplete = StockTransferReceivingById + "/complete";
+
+        public const string TransferDiscrepancies = "transfer-discrepancies";
+        public const string TransferDiscrepancyDecide = TransferDiscrepancies + "/{lossCaseId:guid}/decide";
+
+        public const string StockReconciliation = "stock-reconciliation";
+
+        public const string StockAdjustmentReport = "reports/stock-adjustments";
+        public const string StockTransferReport = "reports/stock-transfers";
+        public const string StockTransferSummaryReport = "reports/stock-transfer-summary";
+        public const string StockAuditReport = "reports/stock-audits";
+        public const string ProductClaimReport = "reports/product-claims";
+    }
+
     // <api-routes:end> (add one nested class per new controller above this line)
 }

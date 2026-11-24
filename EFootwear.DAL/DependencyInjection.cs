@@ -35,6 +35,9 @@ using EFootwear.BLL.Payroll.Abstractions;
 using EFootwear.BLL.Payroll.Services;
 using EFootwear.DAL.HumanResources.Repositories;
 using EFootwear.DAL.Payroll.Repositories;
+using EFootwear.BLL.Inventory.Abstractions;
+using EFootwear.BLL.Inventory.Services;
+using EFootwear.DAL.Inventory.Repositories;
 using EFootwear.BLL.Sales.Abstractions;
 using EFootwear.BLL.Sales.Services;
 using EFootwear.DAL.Sales.Repositories;
@@ -193,6 +196,15 @@ public static class DependencyInjection
         // <module-registrations:catalogue:end>
 
         // --- Inventory ---
+        services.AddScoped<IInventoryPostingRepository, InventoryPostingRepository>();
+        services.AddScoped<IInventoryReadRepository, InventoryReadRepository>();
+        services.AddScoped<InventoryLookupService>();
+        services.AddScoped<StockAdjustmentService>();
+        services.AddScoped<StockCountFileService>();
+        services.AddScoped<StockAuditService>();
+        services.AddScoped<ProductClaimService>();
+        services.AddScoped<StockTransferService>();
+        services.AddScoped<InventoryReportService>();
         // <module-registrations:inventory:end>
 
         // --- Sales ---
