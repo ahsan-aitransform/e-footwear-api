@@ -15,7 +15,7 @@ public sealed class CashPromise : IHasRowVersion
     public long? PromiseNumber { get; set; }
 
     public Guid StoreId { get; set; }
-    public Guid CustomerPartyId { get; set; }
+    public Guid CustomerId { get; set; }
     public DateOnly PromiseDate { get; set; }
     public DateOnly DueDate { get; set; }
 

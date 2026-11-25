@@ -4,7 +4,9 @@ using EFootwear.Domain.Accounting;
 using EFootwear.Domain.Catalogue;
 using EFootwear.Domain.CashManagement;
 using EFootwear.Domain.MasterData;
-using EFootwear.Domain.Parties;
+using EFootwear.Domain.Customers;
+using EFootwear.Domain.Staff;
+using EFootwear.Domain.Vendors;
 using EFootwear.Domain.Core;
 using EFootwear.Domain.Platform;
 using EFootwear.Domain.Security;
@@ -43,10 +45,13 @@ public sealed class ApplicationDatabaseContext(DbContextOptions<ApplicationDatab
     public DbSet<SizeCode> SizeCodes => Set<SizeCode>();
     public DbSet<AccountGroup> AccountGroups => Set<AccountGroup>();
     public DbSet<GeneralLedgerAccount> GeneralLedgerAccounts => Set<GeneralLedgerAccount>();
-    public DbSet<Party> Parties => Set<Party>();
-    public DbSet<StaffProfile> StaffProfiles => Set<StaffProfile>();
+    public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<CustomerBalance> CustomerBalances => Set<CustomerBalance>();
+    public DbSet<Vendor> Vendors => Set<Vendor>();
+    public DbSet<VendorBalance> VendorBalances => Set<VendorBalance>();
+    public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
     public DbSet<StaffStoreHistory> StaffStoreHistories => Set<StaffStoreHistory>();
-    public DbSet<PartyBalance> PartyBalances => Set<PartyBalance>();
+    public DbSet<StaffBalance> StaffBalances => Set<StaffBalance>();
     public DbSet<CashPromise> CashPromises => Set<CashPromise>();
     public DbSet<CashCount> CashCounts => Set<CashCount>();
     public DbSet<CashCountDenomination> CashCountDenominations => Set<CashCountDenomination>();
@@ -66,7 +71,7 @@ public sealed class ApplicationDatabaseContext(DbContextOptions<ApplicationDatab
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDatabaseContext).Assembly);
 
         // The ten simple master lists share one class (MasterListItem) but live in ten tables: shared-type entities, which
-        // IEntityTypeConfiguration cannot express (module masterdata-parties).
+        // IEntityTypeConfiguration cannot express (module master-data).
         MasterListMappings.Apply(modelBuilder);
 
         // Column names in the database are snake_case; the classes use PascalCase. A name set explicitly in a

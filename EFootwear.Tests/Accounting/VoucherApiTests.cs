@@ -7,7 +7,7 @@ using EFootwear.Domain.Security;
 using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using EFootwear.Tests.Parties;
+using EFootwear.Tests.Contacts;
 using static EFootwear.Tests.Accounting.VoucherTestHelpers;
 
 namespace EFootwear.Tests.Accounting;
@@ -23,11 +23,11 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     public async Task A_payment_voucher_posts_one_balanced_entry_and_the_vendor_balance_equals_the_ledger()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Zubair Umair Shoes", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Zubair Umair Shoes");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
 
         var voucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl,
-            VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 60_000, referenceNumber: "CHQ-77"));
+            VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 60_000, referenceNumber: "CHQ-77"));
 
         Assert.Equal("PAYMENT", voucher.GetProperty("voucherTypeCode").GetString());
         Assert.Equal(1, voucher.GetProperty("voucherNumber").GetInt64());
@@ -39,12 +39,12 @@ public class VoucherApiTests(ApiTestEnvironment environment)
         Assert.Equal(2, lines.Count);
         Assert.Equal(60_000, lines.Sum(line => line.GetProperty("debitAmount").GetInt64()));
         Assert.Equal(60_000, lines.Sum(line => line.GetProperty("creditAmount").GetInt64()));
-        Assert.Contains(lines, line => line.GetProperty("partyId").ValueKind == JsonValueKind.String && line.GetProperty("debitAmount").GetInt64() == 60_000);
+        Assert.Contains(lines, line => line.GetProperty("vendorId").ValueKind == JsonValueKind.String && line.GetProperty("debitAmount").GetInt64() == 60_000);
 
         Assert.Equal(0, await JournalDifferenceAsync(environment, scenario.CompanyId));
-        Assert.Equal(60_000, await PartyNetBalanceAsync(environment, scenario.CompanyId, vendorId));
+        Assert.Equal(60_000, await VendorNetBalanceAsync(environment, scenario.CompanyId, vendorId));
         Assert.Equal(60_000, await environment.Database.QueryScalarAsOwnerAsync<long>(
-            "select debit_total - credit_total from party.party_balances where company_id = $1 and party_id = $2", scenario.CompanyId, vendorId));
+            "select debit_total - credit_total from contacts.vendor_balances where company_id = $1 and vendor_id = $2", scenario.CompanyId, vendorId));
         Assert.Equal(-60_000, await NetBalanceOfAccountAsync(environment, scenario.CompanyId, cashAccountId));
     }
 
@@ -52,7 +52,7 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     public async Task Voucher_numbers_count_up_per_type_and_store_and_the_entry_context_previews_the_next_one()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var customerId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Walk-in Customer Two");
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Walk-in Customer Two");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
 
         var contextBefore = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(
@@ -60,11 +60,11 @@ public class VoucherApiTests(ApiTestEnvironment environment)
         Assert.Equal(1, contextBefore.GetProperty("nextVoucherNumber").GetInt64());
 
         var first = await PostVoucherAsync(scenario.OwnerClient, ReceiptUrl,
-            VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), PartyTarget(customerId), 5_000));
+            VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), CustomerTarget(customerId), 5_000));
         var second = await PostVoucherAsync(scenario.OwnerClient, ReceiptUrl,
-            VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), PartyTarget(customerId), 7_000));
+            VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), CustomerTarget(customerId), 7_000));
         var journalVoucher = await PostVoucherAsync(scenario.OwnerClient, JournalUrl,
-            VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), PartyTarget(customerId), 1_000));
+            VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), CustomerTarget(customerId), 1_000));
 
         Assert.Equal(1, first.GetProperty("voucherNumber").GetInt64());
         Assert.Equal(2, second.GetProperty("voucherNumber").GetInt64());
@@ -111,29 +111,29 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     public async Task Bad_vouchers_are_refused_with_a_clear_error()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor For Bad Vouchers", isCustomer: false, isVendor: true);
-        var otherVendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Second Vendor", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor For Bad Vouchers");
+        var otherVendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Second Vendor");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        var partyControlAccountId = await AccountIdAsync(environment, scenario.CompanyId, "1030");
+        var subledgerControlAccountId = await AccountIdAsync(environment, scenario.CompanyId, "1030");
         var stockAccountId = await AccountIdAsync(environment, scenario.CompanyId, "5020");
 
         async Task<HttpResponseMessage> Post(object body) => await scenario.OwnerClient.PostAsJsonAsync(PaymentUrl, body);
 
         // amount zero or negative
-        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 0))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), -5))).StatusCode);
-        // both boxes name a party: refused before the database
-        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), PartyTarget(otherVendorId), 100))).StatusCode);
-        // a box with neither an account nor a party, or with both
-        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, new { accountId = (Guid?)null, partyId = (Guid?)null }, AccountTarget(cashAccountId), 100))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, new { accountId = (Guid?)cashAccountId, partyId = (Guid?)vendorId }, AccountTarget(cashAccountId), 100))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 0))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), -5))).StatusCode);
+        // both boxes name a vendor or customer: refused before the database
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), VendorTarget(otherVendorId), 100))).StatusCode);
+        // a box with neither an account nor a contact, or with both
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, new { accountId = (Guid?)null, vendorId = (Guid?)null }, AccountTarget(cashAccountId), 100))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, new { accountId = (Guid?)cashAccountId, vendorId = (Guid?)vendorId }, AccountTarget(cashAccountId), 100))).StatusCode);
         // unknown payment mode
-        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 100, paymentMode: "BARTER"))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post(VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 100, paymentMode: "BARTER"))).StatusCode);
 
-        // database rules answer 422: the same account on both sides, the party control account without a party, a stock account
+        // database rules answer 422: the same account on both sides, the subledger control account without a contact, a stock account
         var sameAccount = await Post(VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), AccountTarget(cashAccountId), 100));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, sameAccount.StatusCode);
-        var controlAccount = await Post(VoucherBody(scenario.FirstStoreId, AccountTarget(partyControlAccountId), AccountTarget(cashAccountId), 100));
+        var controlAccount = await Post(VoucherBody(scenario.FirstStoreId, AccountTarget(subledgerControlAccountId), AccountTarget(cashAccountId), 100));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, controlAccount.StatusCode);
         Assert.Equal(ErrorCodes.DatabaseRuleViolation, await ErrorCodeOfAsync(controlAccount));
         var stockAccount = await Post(VoucherBody(scenario.FirstStoreId, AccountTarget(stockAccountId), AccountTarget(cashAccountId), 100));
@@ -148,10 +148,10 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     public async Task Voiding_reverses_the_entry_keeps_the_history_and_cannot_happen_twice()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor To Void", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor To Void");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
         var voucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl,
-            VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 20_000));
+            VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 20_000));
         var voucherId = voucher.GetProperty("id").GetGuid();
         var voidUrl = $"{VouchersUrl}/{voucherId}/void";
 
@@ -168,7 +168,7 @@ public class VoucherApiTests(ApiTestEnvironment environment)
             "select count(*) from acct.journal_entries where company_id = $1 and source_type like 'VOUCHER%'", scenario.CompanyId));
         Assert.Equal(4L, await environment.Database.QueryScalarAsOwnerAsync<long>(
             "select count(*) from acct.journal_lines where company_id = $1", scenario.CompanyId));
-        Assert.Equal(0, await PartyNetBalanceAsync(environment, scenario.CompanyId, vendorId));
+        Assert.Equal(0, await VendorNetBalanceAsync(environment, scenario.CompanyId, vendorId));
         Assert.Equal(0, await NetBalanceOfAccountAsync(environment, scenario.CompanyId, cashAccountId));
         Assert.Equal(0, await JournalDifferenceAsync(environment, scenario.CompanyId));
 
@@ -182,10 +182,10 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     public async Task A_retry_with_the_same_client_transaction_id_returns_the_first_voucher_and_posts_nothing_twice()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Retrying Vendor", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Retrying Vendor");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
         var clientTransactionId = Guid.NewGuid();
-        var body = VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 9_000, clientTransactionId: clientTransactionId);
+        var body = VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 9_000, clientTransactionId: clientTransactionId);
 
         var first = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, body);
         var retry = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, body);
@@ -193,17 +193,17 @@ public class VoucherApiTests(ApiTestEnvironment environment)
         Assert.Equal(first.GetProperty("id").GetGuid(), retry.GetProperty("id").GetGuid());
         Assert.Equal(1L, await environment.Database.QueryScalarAsOwnerAsync<long>("select count(*) from acct.vouchers where company_id = $1", scenario.CompanyId));
         Assert.Equal(1L, await environment.Database.QueryScalarAsOwnerAsync<long>("select count(*) from acct.journal_entries where company_id = $1", scenario.CompanyId));
-        Assert.Equal(9_000, await PartyNetBalanceAsync(environment, scenario.CompanyId, vendorId));
+        Assert.Equal(9_000, await VendorNetBalanceAsync(environment, scenario.CompanyId, vendorId));
     }
 
     [Fact]
     public async Task A_closed_month_refuses_vouchers_dated_in_it_and_reopening_allows_them_again()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor In A Closed Month", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor In A Closed Month");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
         var periodsUrl = TestScenarioBuilder.Url(ApiRoutes.AccountingPeriods.Root);
-        var body = VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 1_500, voucherDate: "2026-03-15");
+        var body = VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 1_500, voucherDate: "2026-03-15");
 
         await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, $"{periodsUrl}/{ApiRoutes.AccountingPeriods.Close}", new { periodStart = "2026-03-01" });
 
@@ -220,14 +220,14 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     public async Task Allocations_settle_purchase_invoices_and_voiding_the_voucher_releases_them()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor With Bills", isCustomer: false, isVendor: true);
-        var otherVendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Another Vendor", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor With Bills");
+        var otherVendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Another Vendor");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
         var invoiceId = await CreatePurchaseInvoiceAsync(environment, scenario.CompanyId, scenario.FirstStoreId, vendorId, 50_000);
         var otherInvoiceId = await CreatePurchaseInvoiceAsync(environment, scenario.CompanyId, scenario.FirstStoreId, otherVendorId, 10_000, invoiceNumber: 2);
 
         var voucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(
-            scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 40_000,
+            scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 40_000,
             allocations: new[] { new { invoiceId, amount = 30_000L } }));
         Assert.Equal(20_000, await PurchaseInvoiceRemainingAsync(environment, scenario.CompanyId, invoiceId));
         var allocation = voucher.GetProperty("allocations").EnumerateArray().Single();
@@ -236,20 +236,20 @@ public class VoucherApiTests(ApiTestEnvironment environment)
 
         // more than the remaining 20,000, an invoice of another vendor, allocations above the voucher amount, and a unknown invoice
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await scenario.OwnerClient.PostAsJsonAsync(PaymentUrl, VoucherBody(
-            scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 40_000,
+            scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 40_000,
             allocations: new[] { new { invoiceId, amount = 25_000L } }))).StatusCode);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await scenario.OwnerClient.PostAsJsonAsync(PaymentUrl, VoucherBody(
-            scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 5_000,
+            scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 5_000,
             allocations: new[] { new { invoiceId = otherInvoiceId, amount = 5_000L } }))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await scenario.OwnerClient.PostAsJsonAsync(PaymentUrl, VoucherBody(
-            scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 5_000,
+            scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 5_000,
             allocations: new[] { new { invoiceId, amount = 6_000L } }))).StatusCode);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await scenario.OwnerClient.PostAsJsonAsync(PaymentUrl, VoucherBody(
-            scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 5_000,
+            scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 5_000,
             allocations: new[] { new { invoiceId = Guid.NewGuid(), amount = 5_000L } }))).StatusCode);
         // a journal voucher cannot settle invoices
         Assert.Equal(HttpStatusCode.BadRequest, (await scenario.OwnerClient.PostAsJsonAsync(JournalUrl, VoucherBody(
-            scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 5_000,
+            scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 5_000,
             allocations: new[] { new { invoiceId, amount = 1_000L } }))).StatusCode);
         Assert.Equal(20_000, await PurchaseInvoiceRemainingAsync(environment, scenario.CompanyId, invoiceId));
 
@@ -262,10 +262,10 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     public async Task Search_by_number_and_the_report_count_only_posted_vouchers_in_the_total()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor For Reports", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor For Reports");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        var first = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 10_000, description: "January rent top-up"));
-        var second = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 4_000));
+        var first = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 10_000, description: "January rent top-up"));
+        var second = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 4_000));
         await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, $"{VouchersUrl}/{second.GetProperty("id").GetGuid()}/void", new { reason = "Entered twice" });
 
         // by type and number (View Voucher)
@@ -293,9 +293,9 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     public async Task Update_description_changes_only_the_narration_and_a_stale_row_version_is_a_conflict()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor For Narration", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor For Narration");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        var voucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 3_000, description: "Old text"));
+        var voucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 3_000, description: "Old text"));
         var url = $"{VouchersUrl}/{voucher.GetProperty("id").GetGuid()}/description";
         var rowVersion = voucher.GetProperty("rowVersion").GetInt64();
 
@@ -317,9 +317,9 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     public async Task Each_voucher_screen_has_its_own_permission_and_posting_also_needs_the_legacy_code()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor For Permissions", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor For Permissions");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        var body = VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 500);
+        var body = VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 500);
 
         var nothing = await scenario.SignInManagerWithPermissionsAsync();
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.PostAsJsonAsync(PaymentUrl, body)).StatusCode);
@@ -365,18 +365,18 @@ public class VoucherApiTests(ApiTestEnvironment environment)
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
         var secondStoreId = await scenario.CreateStoreAsync("S2");
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor For Isolation", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor For Isolation");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        var firstStoreVoucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 800));
+        var firstStoreVoucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 800));
         var voucherId = firstStoreVoucher.GetProperty("id").GetGuid();
 
         // another company never sees it
         var otherCompany = await OwnerCompanyScenario.CreateAsync(environment);
         Assert.Equal(HttpStatusCode.NotFound, (await otherCompany.OwnerClient.GetAsync($"{VouchersUrl}/{voucherId}")).StatusCode);
         Assert.Equal(0, (await OwnerCompanyScenario.ReadJsonAsync(await otherCompany.OwnerClient.GetAsync(VouchersUrl))).GetProperty("totalCount").GetInt64());
-        // and cannot post against this company's account or party
+        // and cannot post against this company's account or vendor
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await otherCompany.OwnerClient.PostAsJsonAsync(PaymentUrl,
-            VoucherBody(otherCompany.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 100))).StatusCode);
+            VoucherBody(otherCompany.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 100))).StatusCode);
 
         // a manager of the second store only: cannot read the first store's voucher and cannot post into it
         var secondStoreManager = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [secondStoreId],
@@ -385,37 +385,38 @@ public class VoucherApiTests(ApiTestEnvironment environment)
         Assert.Equal(0, (await OwnerCompanyScenario.ReadJsonAsync(await secondStoreManager.GetAsync(VouchersUrl))).GetProperty("totalCount").GetInt64());
         Assert.Equal(HttpStatusCode.Forbidden, (await secondStoreManager.GetAsync($"{VouchersUrl}?storeId={scenario.FirstStoreId}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await secondStoreManager.PostAsJsonAsync(PaymentUrl,
-            VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 100))).StatusCode);
+            VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 100))).StatusCode);
         // the head office is reachable only by people who may see every store
         Assert.Equal(HttpStatusCode.Forbidden, (await secondStoreManager.PostAsJsonAsync(PaymentUrl,
-            VoucherBody(Guid.Empty, PartyTarget(vendorId), AccountTarget(cashAccountId), 100))).StatusCode);
+            VoucherBody(Guid.Empty, VendorTarget(vendorId), AccountTarget(cashAccountId), 100))).StatusCode);
 
         // the owner sees both stores' vouchers
-        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(secondStoreId, PartyTarget(vendorId), AccountTarget(await AccountIdAsync(environment, scenario.CompanyId, "CASH-S2")), 900));
+        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(secondStoreId, VendorTarget(vendorId), AccountTarget(await AccountIdAsync(environment, scenario.CompanyId, "CASH-S2")), 900));
         Assert.Equal(2, (await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(VouchersUrl))).GetProperty("totalCount").GetInt64());
     }
 
     [Fact]
-    public async Task Target_lookups_return_accounts_and_parties_with_balances_but_never_stock_or_the_party_control_account()
+    public async Task Target_lookups_return_accounts_and_vendors_with_balances_but_never_stock_or_the_subledger_control_account()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Searchable Vendor Name", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Searchable Vendor Name");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 2_500));
+        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 2_500));
 
         var accounts = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(
             $"{VouchersUrl}/{ApiRoutes.Vouchers.PaymentTargets}?kindCode=ACCOUNT"));
         var accountCodes = accounts.EnumerateArray().Select(option => option.GetProperty("code").GetString()!).ToList();
         Assert.Contains("CASH-S1", accountCodes);
-        Assert.DoesNotContain("1030", accountCodes);   // parties are chosen as parties
+        Assert.DoesNotContain("1030", accountCodes);   // customers, vendors and staff are chosen as such
         Assert.DoesNotContain("5020", accountCodes);   // stock is posted by stock documents
         var cash = accounts.EnumerateArray().Single(option => option.GetProperty("code").GetString() == "CASH-S1");
         Assert.Equal(2_500, cash.GetProperty("balanceAmount").GetInt64());
         Assert.Equal("CREDIT", cash.GetProperty("balanceSideCode").GetString());
 
-        var parties = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(
-            $"{VouchersUrl}/{ApiRoutes.Vouchers.PaymentTargets}?kindCode=PARTY&partyTypeCode=VENDOR&searchText=searchable"));
-        var vendor = parties.EnumerateArray().Single();
+        var vendors = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(
+            $"{VouchersUrl}/{ApiRoutes.Vouchers.PaymentTargets}?kindCode=VENDOR&searchText=searchable"));
+        var vendor = vendors.EnumerateArray().Single();
+        Assert.Equal(vendorId, vendor.GetProperty("vendorId").GetGuid());
         Assert.Equal(2_500, vendor.GetProperty("balanceAmount").GetInt64());
         Assert.Equal("DEBIT", vendor.GetProperty("balanceSideCode").GetString());
         Assert.Equal(HttpStatusCode.BadRequest, (await scenario.OwnerClient.GetAsync($"{VouchersUrl}/{ApiRoutes.Vouchers.PaymentTargets}?kindCode=NONSENSE")).StatusCode);

@@ -9,8 +9,8 @@ using Microsoft.EntityFrameworkCore;
 namespace EFootwear.DAL.HumanResources.Repositories;
 
 /// <summary>
-/// Staff profiles, the salary history and the store history of staff. Reads are plain SQL over party.staff_profiles, hr.salary_terms and
-/// party.staff_store_history; the staff tables are isolated by company only, so every query also limits itself to the stores the caller may use.
+/// Staff profiles, the salary history and the store history of staff. Reads are plain SQL over contacts.staff, hr.salary_terms and
+/// contacts.staff_store_history; the staff tables are isolated by company only, so every query also limits itself to the stores the caller may use.
 /// The only write is the salary terms: the database adds the effective-dated history row by trigger.
 /// </summary>
 public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUser currentUser) : IStaffRepository
@@ -33,8 +33,8 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
 
     // Parameters: 0 company, 1 store, 2 include former staff, 3 search pattern, 4 may use every store, 5 the stores the caller may use.
     private const string StaffFromAndWhere = """
-        from party.staff_profiles sp
-        join party.parties p on p.company_id = sp.company_id and p.id = sp.party_id
+        from contacts.staff sp
+        join contacts.staff p on p.company_id = sp.company_id and p.id = sp.id
         join core.stores s on s.company_id = sp.company_id and s.id = sp.current_store_id
         where sp.company_id = {0} and not p.is_deleted
           and (cast({1} as uuid) is null or sp.current_store_id = cast({1} as uuid))
@@ -47,20 +47,20 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
         """;
 
     private const string StaffColumns = """
-        sp.party_id as "PartyId", p.code as "Code", p.name as "Name", sp.designation as "Designation", sp.is_manager as "IsManager",
+        sp.id as "StaffId", p.code as "Code", p.name as "Name", sp.designation as "Designation", sp.is_manager as "IsManager",
         sp.current_store_id as "CurrentStoreId", s.name as "CurrentStoreName", sp.base_salary as "BaseSalary",
-        sp.pay_frequency as "PayFrequencyCode", sp.joined_on as "JoinedOn", sp.left_on as "LeftOn", p.status as "PartyStatusCode"
+        sp.pay_frequency as "PayFrequencyCode", sp.joined_on as "JoinedOn", sp.left_on as "LeftOn", p.status as "StatusCode"
         """;
 
     // Parameters: 0 company, 1 staff member, 2 store, 3 first date, 4 last date, 5 search pattern, 6 may use every store, 7 the stores the caller may use.
     private const string TransferFromAndWhere = """
-        from party.staff_store_history h
-        join party.parties p on p.company_id = h.company_id and p.id = h.party_id
+        from contacts.staff_store_history h
+        join contacts.staff p on p.company_id = h.company_id and p.id = h.staff_id
         join core.stores to_store on to_store.company_id = h.company_id and to_store.id = h.to_store_id
         left join core.stores from_store on from_store.company_id = h.company_id and from_store.id = h.from_store_id
         left join sec.users changed_by_user on changed_by_user.company_id = h.company_id and changed_by_user.id = h.changed_by
         where h.company_id = {0}
-          and (cast({1} as uuid) is null or h.party_id = cast({1} as uuid))
+          and (cast({1} as uuid) is null or h.staff_id = cast({1} as uuid))
           and (cast({2} as uuid) is null or h.to_store_id = cast({2} as uuid) or h.from_store_id = cast({2} as uuid))
           and (cast({3} as date) is null or h.effective_on >= cast({3} as date))
           and (cast({4} as date) is null or h.effective_on <= cast({4} as date))
@@ -90,26 +90,26 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
 
         var rows = await databaseContext.Database.SqlQueryRaw<StaffRow>($$"""
             select {{StaffColumns}} {{StaffFromAndWhere}}
-             order by {{primaryOrder}}p.name, sp.party_id
+             order by {{primaryOrder}}p.name, sp.id
              limit {6} offset {7}
             """, parameters).ToListAsync(cancellationToken);
         return new PagedResult<StaffListItemResponse>(rows.Select(ToStaffListItem).ToList(), pageRequest.PageNumber, pageRequest.PageSize, totalCount);
     }
 
-    public async Task<StaffDetailResponse?> FindStaffDetailAsync(Guid partyId, CancellationToken cancellationToken)
+    public async Task<StaffDetailResponse?> FindStaffDetailAsync(Guid staffId, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
 
         var profile = await databaseContext.Database.SqlQuery<StaffDetailRow>($"""
-            select sp.party_id as "PartyId", p.code as "Code", p.name as "Name", sp.designation as "Designation", sp.is_manager as "IsManager",
+            select sp.id as "StaffId", p.code as "Code", p.name as "Name", sp.designation as "Designation", sp.is_manager as "IsManager",
                    sp.current_store_id as "CurrentStoreId", s.name as "CurrentStoreName", sp.base_salary as "BaseSalary",
-                   sp.pay_frequency as "PayFrequencyCode", sp.joined_on as "JoinedOn", sp.left_on as "LeftOn", p.status as "PartyStatusCode",
+                   sp.pay_frequency as "PayFrequencyCode", sp.joined_on as "JoinedOn", sp.left_on as "LeftOn", p.status as "StatusCode",
                    sp.row_ver as "RowVersion"
-              from party.staff_profiles sp
-              join party.parties p on p.company_id = sp.company_id and p.id = sp.party_id
+              from contacts.staff sp
+              join contacts.staff p on p.company_id = sp.company_id and p.id = sp.id
               join core.stores s on s.company_id = sp.company_id and s.id = sp.current_store_id
-             where sp.company_id = {companyId} and sp.party_id = {partyId} and not p.is_deleted
+             where sp.company_id = {companyId} and sp.id = {staffId} and not p.is_deleted
             """).SingleOrDefaultAsync(cancellationToken);
         if (profile is null) return null;
 
@@ -118,7 +118,7 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
                    t.changed_by as "ChangedByUserId", u.full_name as "ChangedByName", t.changed_at as "ChangedAt"
               from hr.salary_terms t
               left join sec.users u on u.company_id = t.company_id and u.id = t.changed_by
-             where t.company_id = {companyId} and t.employee_party_id = {partyId}
+             where t.company_id = {companyId} and t.staff_id = {staffId}
              order by t.effective_from desc, t.changed_at desc
             """).ToListAsync(cancellationToken);
 
@@ -126,11 +126,11 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
             select h.id as "Id", h.from_store_id as "FromStoreId", from_store.name as "FromStoreName", h.to_store_id as "ToStoreId",
                    to_store.name as "ToStoreName", h.effective_on as "EffectiveOn", h.changed_by as "ChangedByUserId",
                    changed_by_user.full_name as "ChangedByName", h.changed_at as "ChangedAt"
-              from party.staff_store_history h
+              from contacts.staff_store_history h
               join core.stores to_store on to_store.company_id = h.company_id and to_store.id = h.to_store_id
               left join core.stores from_store on from_store.company_id = h.company_id and from_store.id = h.from_store_id
               left join sec.users changed_by_user on changed_by_user.company_id = h.company_id and changed_by_user.id = h.changed_by
-             where h.company_id = {companyId} and h.party_id = {partyId}
+             where h.company_id = {companyId} and h.staff_id = {staffId}
              order by h.effective_on desc, h.changed_at desc
             """).ToListAsync(cancellationToken);
 
@@ -143,16 +143,16 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
                                                                          row.EffectiveOn, row.ChangedByUserId, row.ChangedByName, row.ChangedAt)).ToList());
     }
 
-    public async Task<bool> UpdateSalaryTermsAsync(Guid partyId, long baseSalary, string payFrequencyCode, long expectedRowVersion, CancellationToken cancellationToken)
+    public async Task<bool> UpdateSalaryTermsAsync(Guid staffId, long baseSalary, string payFrequencyCode, long expectedRowVersion, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
         var userId = currentUser.UserId;
         // The trigger hr.log_salary_term adds the effective-dated salary history row; the row version makes a stale save fail instead of overwriting.
         var changedRows = await databaseContext.Database.ExecuteSqlAsync($"""
-            update party.staff_profiles
+            update contacts.staff
                set base_salary = {baseSalary}, pay_frequency = {payFrequencyCode}, updated_by = {userId}
-             where company_id = {companyId} and party_id = {partyId} and row_ver = {expectedRowVersion}
+             where company_id = {companyId} and id = {staffId} and row_ver = {expectedRowVersion}
             """, cancellationToken);
         return changedRows == 1;
     }
@@ -163,7 +163,7 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         object?[] filterParameters =
         [
-            currentUser.CompanyId, filter.PartyId, filter.StoreId, filter.FromDate, filter.ToDate,
+            currentUser.CompanyId, filter.StaffId, filter.StoreId, filter.FromDate, filter.ToDate,
             pageRequest.SearchText is null ? null : LikePattern.Contains(pageRequest.SearchText),
             currentUser.HasAccessToAllStores, currentUser.AssignedStoreIds.ToArray(),
         ];
@@ -179,7 +179,7 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
         var parameters = filterParameters.Concat(new object?[] { pageRequest.PageSize, pageRequest.SkippedItemCount }).ToArray();
 
         var rows = await databaseContext.Database.SqlQueryRaw<TransferListRow>($$"""
-            select h.id as "Id", h.party_id as "PartyId", p.code as "StaffCode", p.name as "StaffName",
+            select h.id as "Id", h.staff_id as "StaffId", p.code as "StaffCode", p.name as "StaffName",
                    h.from_store_id as "FromStoreId", from_store.name as "FromStoreName", h.to_store_id as "ToStoreId", to_store.name as "ToStoreName",
                    h.effective_on as "EffectiveOn", h.changed_by as "ChangedByUserId", changed_by_user.full_name as "ChangedByName",
                    h.changed_at as "ChangedAt"
@@ -188,19 +188,19 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
              limit {8} offset {9}
             """, parameters).ToListAsync(cancellationToken);
         return new PagedResult<StaffTransferListItemResponse>(
-            rows.Select(row => new StaffTransferListItemResponse(row.Id, row.PartyId, row.StaffCode, row.StaffName, row.FromStoreId, row.FromStoreName,
+            rows.Select(row => new StaffTransferListItemResponse(row.Id, row.StaffId, row.StaffCode, row.StaffName, row.FromStoreId, row.FromStoreName,
                                                                  row.ToStoreId, row.ToStoreName, row.EffectiveOn, row.ChangedByUserId,
                                                                  row.ChangedByName, row.ChangedAt)).ToList(),
             pageRequest.PageNumber, pageRequest.PageSize, totalCount);
     }
 
     private static StaffListItemResponse ToStaffListItem(StaffRow row) =>
-        new(row.PartyId, row.Code, row.Name, row.Designation, row.IsManager, row.CurrentStoreId, row.CurrentStoreName, row.BaseSalary,
-            row.PayFrequencyCode, row.JoinedOn, row.LeftOn, row.PartyStatusCode);
+        new(row.StaffId, row.Code, row.Name, row.Designation, row.IsManager, row.CurrentStoreId, row.CurrentStoreName, row.BaseSalary,
+            row.PayFrequencyCode, row.JoinedOn, row.LeftOn, row.StatusCode);
 
     private class StaffRow
     {
-        public Guid PartyId { get; set; }
+        public Guid StaffId { get; set; }
         public string Code { get; set; } = "";
         public string Name { get; set; } = "";
         public string? Designation { get; set; }
@@ -211,7 +211,7 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
         public string PayFrequencyCode { get; set; } = "";
         public DateOnly? JoinedOn { get; set; }
         public DateOnly? LeftOn { get; set; }
-        public string PartyStatusCode { get; set; } = "";
+        public string StatusCode { get; set; } = "";
     }
 
     private sealed class StaffDetailRow : StaffRow
@@ -246,7 +246,7 @@ public sealed class StaffRepository(DatabaseSession databaseSession, ICurrentUse
     private sealed class TransferListRow
     {
         public Guid Id { get; set; }
-        public Guid PartyId { get; set; }
+        public Guid StaffId { get; set; }
         public string StaffCode { get; set; } = "";
         public string StaffName { get; set; } = "";
         public Guid? FromStoreId { get; set; }

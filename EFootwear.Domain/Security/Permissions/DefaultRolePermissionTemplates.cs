@@ -35,9 +35,13 @@ public static class DefaultRolePermissionTemplates
     private static IReadOnlyList<string> BuildStoreManagerTemplate()
     {
         var codes = new List<string>();
-        string[] operationalModules = ["PRODUCTS", "PARTY", "INVOICE", "ORDERS", "VOUCHER", "REPORTS", "INVENTORY", "VENDORS", "EXPENSES", "DASHBOARDS"];
+        string[] operationalModules = ["PRODUCTS", "CUSTOMERS", "CASH_MANAGEMENT", "INVOICE", "ORDERS", "VOUCHER", "REPORTS", "INVENTORY", "VENDORS", "EXPENSES", "DASHBOARDS"];
         foreach (var moduleCode in operationalModules)
             codes.AddRange(CodesOf(moduleCode, screenCode: null, [PermissionActionCodes.Delete], invertActions: true));
+
+        // The staff screens and the salary sheets used to be part of the combined people module the store manager had (everything except delete).
+        foreach (var staffScreenCode in new[] { "NEW_STAFF", "VIEW_STAFF", "SEARCH_STAFF", "STAFF_ACCOUNT_DETAIL", "NEW_SALARY_SHEET", "VIEW_SALARY_SHEET" })
+            codes.AddRange(CodesOf("HUMAN_RESOURCES", staffScreenCode, [PermissionActionCodes.Delete], invertActions: true));
 
         codes.AddRange(CodesOf("USER_ACCOUNT", "CREATE_USER", [PermissionActionCodes.View, PermissionActionCodes.Add]));
         codes.AddRange(CodesOf("USER_ACCOUNT", "VIEW_USERS", [PermissionActionCodes.View]));
@@ -62,24 +66,31 @@ public static class DefaultRolePermissionTemplates
         codes.AddRange(CodesOf("PRODUCTS", "SEARCH_PRODUCT"));
         codes.AddRange(CodesOf("PRODUCTS", "PRICE_CHECK"));
         codes.AddRange(CodesOf("PRODUCTS", "VIEW_PRODUCTS", [PermissionActionCodes.View]));
-        codes.AddRange(CodesOf("PARTY", "SEARCH_PARTY"));
-        codes.AddRange(CodesOf("PARTY", "VIEW_PARTY", [PermissionActionCodes.View]));
-        codes.AddRange(CodesOf("PARTY", "NEW_PARTY", [PermissionActionCodes.View, PermissionActionCodes.Add]));
+        codes.AddRange(CodesOf("CUSTOMERS", "SEARCH_CUSTOMER"));
+        codes.AddRange(CodesOf("CUSTOMERS", "VIEW_CUSTOMERS", [PermissionActionCodes.View]));
+        codes.AddRange(CodesOf("CUSTOMERS", "NEW_CUSTOMER", [PermissionActionCodes.View, PermissionActionCodes.Add]));
         codes.AddRange(CodesOf("USER_ACCOUNT", "CHANGE_PASSWORD"));
         codes.Add("SALE_CREATE");
         return Distinct(codes);
     }
 
-    // Accountant: vouchers, accounting reports, ledgers, expenses; reads parties, invoices and payroll.
+    // Accountant: vouchers, accounting reports, ledgers, expenses; reads customers, vendors, staff, invoices and payroll.
     private static IReadOnlyList<string> BuildAccountantTemplate()
     {
         var codes = new List<string>();
         codes.AddRange(CodesOf("VOUCHER", screenCode: null, [PermissionActionCodes.Delete, PermissionActionCodes.Approve], invertActions: true));
         codes.AddRange(CodesOf("REPORTS"));
         codes.AddRange(CodesOf("EXPENSES", screenCode: null, [PermissionActionCodes.Delete], invertActions: true));
-        codes.AddRange(CodesOf("PARTY", "VIEW_PARTY", [PermissionActionCodes.View, PermissionActionCodes.Print, PermissionActionCodes.Export]));
-        codes.AddRange(CodesOf("PARTY", "SEARCH_PARTY"));
-        codes.AddRange(CodesOf("PARTY", "ACCOUNT_DETAIL", [PermissionActionCodes.View, PermissionActionCodes.Print, PermissionActionCodes.Export]));
+        var readAndPrint = new[] { PermissionActionCodes.View, PermissionActionCodes.Print, PermissionActionCodes.Export };
+        codes.AddRange(CodesOf("CUSTOMERS", "VIEW_CUSTOMERS", readAndPrint));
+        codes.AddRange(CodesOf("CUSTOMERS", "SEARCH_CUSTOMER"));
+        codes.AddRange(CodesOf("CUSTOMERS", "CUSTOMER_ACCOUNT_DETAIL", readAndPrint));
+        codes.AddRange(CodesOf("VENDORS", "VIEW_VENDORS", readAndPrint));
+        codes.AddRange(CodesOf("VENDORS", "SEARCH_VENDOR"));
+        codes.AddRange(CodesOf("VENDORS", "VENDOR_ACCOUNT_DETAIL", readAndPrint));
+        codes.AddRange(CodesOf("HUMAN_RESOURCES", "VIEW_STAFF", readAndPrint));
+        codes.AddRange(CodesOf("HUMAN_RESOURCES", "SEARCH_STAFF"));
+        codes.AddRange(CodesOf("HUMAN_RESOURCES", "STAFF_ACCOUNT_DETAIL", readAndPrint));
         codes.AddRange(CodesOf("INVOICE", "VIEW_INVOICES", [PermissionActionCodes.View, PermissionActionCodes.Print, PermissionActionCodes.Export]));
         codes.AddRange(CodesOf("HUMAN_RESOURCES", "SALARY_PAYMENTS", [PermissionActionCodes.View, PermissionActionCodes.Print, PermissionActionCodes.Export]));
         foreach (var glScreenCode in new[] { "GL_ACCOUNTS", "NEW_SECOND_LEVEL", "VIEW_SECOND_LEVEL", "OPENING_BALANCE" })

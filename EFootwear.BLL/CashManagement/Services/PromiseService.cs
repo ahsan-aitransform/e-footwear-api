@@ -34,15 +34,15 @@ public sealed class PromiseService(
         await promiseRepository.FindAsync(promiseId, cancellationToken)
         ?? throw new DomainException(ErrorKind.NotFound, "The promise was not found.");
 
-    public async Task<CustomerBalanceResponse> GetCustomerBalanceAsync(Guid customerPartyId, CancellationToken cancellationToken) =>
-        await promiseRepository.GetCustomerBalanceAsync(customerPartyId, cancellationToken)
+    public async Task<CustomerBalanceResponse> GetCustomerBalanceAsync(Guid customerId, CancellationToken cancellationToken) =>
+        await promiseRepository.GetCustomerBalanceAsync(customerId, cancellationToken)
         ?? throw new DomainException(ErrorKind.NotFound, "The customer was not found.");
 
     public async Task<CreatedIdResponse> CreateAsync(CreatePromiseRequest request, CancellationToken cancellationToken)
     {
         EnsureStoreAccess(request.StoreId);
         await EnsureStoreIsUsableAsync(request.StoreId, cancellationToken);
-        if (!await promiseRepository.IsActiveCustomerAsync(request.CustomerPartyId, cancellationToken))
+        if (!await promiseRepository.IsActiveCustomerAsync(request.CustomerId, cancellationToken))
             throw new DomainException(ErrorKind.Validation, "Choose an active customer.");
         PromiseRules.EnsureAmountAndDates(request.PromisedAmount, request.PromiseDate, request.DueDate);
 

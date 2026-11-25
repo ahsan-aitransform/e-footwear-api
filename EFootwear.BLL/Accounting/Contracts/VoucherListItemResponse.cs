@@ -11,7 +11,7 @@ public sealed record VoucherListItemResponse(
     long Amount,
     string DebitAccountTitle,
     string CreditAccountTitle,
-    string? PartyName,
+    string? ContactName,
     string? ReferenceNumber,
     string? Description,
     string StatusCode);

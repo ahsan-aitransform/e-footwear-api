@@ -7,7 +7,9 @@ using EFootwear.Domain.Security;
 using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using static EFootwear.Tests.Parties.PartyTestHelpers;
+using static EFootwear.Tests.Contacts.ContactTestHelpers;
+
+using EFootwear.Tests.Contacts;
 
 namespace EFootwear.Tests.CashManagement;
 
@@ -20,7 +22,7 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     private static string BalanceUrl(Guid customerId) => $"{PromisesUrl}/customers/{customerId}/balance";
 
     private static object NewPromise(Guid storeId, Guid customerId, long amount, string dueDate = "2026-11-27", string promiseDate = "2026-11-20", string? note = null) =>
-        new { storeId, customerPartyId = customerId, promiseDate, dueDate, promisedAmount = amount, note };
+        new { storeId, customerId, promiseDate, dueDate, promisedAmount = amount, note };
 
     private static async Task<Guid> CreatePromiseAsync(HttpClient client, object body) =>
         (await OwnerCompanyScenario.PostJsonAsync(client, PromisesUrl, body)).GetProperty("id").GetGuid();
@@ -33,7 +35,7 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
         var secondStoreId = await scenario.CreateStoreAsync("S2");
-        var customerId = await CreatePartyAsync(scenario.OwnerClient, "Promise Customer");
+        var customerId = await CreateCustomerAsync(scenario.OwnerClient, "Promise Customer");
 
         var first = await CreatePromiseAsync(scenario.OwnerClient, NewPromise(scenario.FirstStoreId, customerId, 5_000, note: "After salary"));
         await CreatePromiseAsync(scenario.OwnerClient, NewPromise(scenario.FirstStoreId, customerId, 3_000, dueDate: "2026-11-25"));
@@ -63,8 +65,8 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     public async Task The_list_filters_by_due_date_and_searches_by_customer_and_description()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var ali = await CreatePartyAsync(scenario.OwnerClient, "Ali Khan");
-        var sara = await CreatePartyAsync(scenario.OwnerClient, "Sara Bibi");
+        var ali = await CreateCustomerAsync(scenario.OwnerClient, "Ali Khan");
+        var sara = await CreateCustomerAsync(scenario.OwnerClient, "Sara Bibi");
         await CreatePromiseAsync(scenario.OwnerClient, NewPromise(scenario.FirstStoreId, ali, 1_000, dueDate: "2026-11-21", note: "shoes"));
         await CreatePromiseAsync(scenario.OwnerClient, NewPromise(scenario.FirstStoreId, sara, 2_000, dueDate: "2026-11-28", note: "bag"));
 
@@ -80,8 +82,8 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     public async Task A_promise_needs_a_positive_amount_sensible_dates_and_an_active_customer()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var customerId = await CreatePartyAsync(scenario.OwnerClient, "Valid Customer");
-        var vendorOnlyId = await CreatePartyAsync(scenario.OwnerClient, "Vendor Only", isCustomer: false, isVendor: true);
+        var customerId = await CreateCustomerAsync(scenario.OwnerClient, "Valid Customer");
+        var vendorOnlyId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor Only");
 
         Assert.Equal(HttpStatusCode.BadRequest, (await scenario.OwnerClient.PostAsJsonAsync(PromisesUrl, NewPromise(scenario.FirstStoreId, customerId, 0))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await scenario.OwnerClient.PostAsJsonAsync(PromisesUrl, NewPromise(scenario.FirstStoreId, customerId, 100, dueDate: "2026-11-01"))).StatusCode);
@@ -94,8 +96,8 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     public async Task The_customer_balance_field_shows_what_the_customer_owes()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var customerId = await CreatePartyAsync(scenario.OwnerClient, "Debtor");
-        await PostLedgerEntryAsync(environment, scenario.CompanyId, customerId, new DateOnly(2026, 3, 1), 4_200, 0);
+        var customerId = await CreateCustomerAsync(scenario.OwnerClient, "Debtor");
+        await PostCustomerLedgerEntryAsync(environment, scenario.CompanyId, customerId, new DateOnly(2026, 3, 1), 4_200, 0);
 
         var balance = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(BalanceUrl(customerId)));
         Assert.Equal(4_200, balance.GetProperty("balanceAmount").GetInt64());
@@ -107,7 +109,7 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     public async Task An_open_promise_can_be_edited_and_a_stale_row_version_is_refused()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var customerId = await CreatePartyAsync(scenario.OwnerClient, "Editor");
+        var customerId = await CreateCustomerAsync(scenario.OwnerClient, "Editor");
         var promiseId = await CreatePromiseAsync(scenario.OwnerClient, NewPromise(scenario.FirstStoreId, customerId, 1_000));
         var rowVersion = (await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{PromisesUrl}/{promiseId}"))).GetProperty("rowVersion").GetInt64();
 
@@ -126,7 +128,7 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     public async Task The_amount_cannot_be_lowered_below_what_was_paid()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var customerId = await CreatePartyAsync(scenario.OwnerClient, "Part payer");
+        var customerId = await CreateCustomerAsync(scenario.OwnerClient, "Part payer");
         var promiseId = await CreatePromiseAsync(scenario.OwnerClient, NewPromise(scenario.FirstStoreId, customerId, 1_000));
         await environment.Database.ExecuteAsOwnerAsync(
             "update cash.promises set paid_amount = 600, status = 'PARTIAL' where company_id = $1 and id = $2", scenario.CompanyId, promiseId);
@@ -144,7 +146,7 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     public async Task Delete_cancels_a_promise_which_then_stays_in_the_history_but_leaves_the_totals()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var customerId = await CreatePartyAsync(scenario.OwnerClient, "Canceller");
+        var customerId = await CreateCustomerAsync(scenario.OwnerClient, "Canceller");
         var kept = await CreatePromiseAsync(scenario.OwnerClient, NewPromise(scenario.FirstStoreId, customerId, 400));
         var cancelled = await CreatePromiseAsync(scenario.OwnerClient, NewPromise(scenario.FirstStoreId, customerId, 900));
         var rowVersion = (await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{PromisesUrl}/{cancelled}"))).GetProperty("rowVersion").GetInt64();
@@ -171,9 +173,9 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
         var secondStoreId = await scenario.CreateStoreAsync("S2");
-        var customerId = await CreatePartyAsync(scenario.OwnerClient, "Two store customer");
+        var customerId = await CreateCustomerAsync(scenario.OwnerClient, "Two store customer");
         var promiseOfSecondStore = await CreatePromiseAsync(scenario.OwnerClient, NewPromise(secondStoreId, customerId, 100));
-        var manager = await scenario.SignInManagerWithPermissionsAsync(PermissionCodes.Party.Promise.View, PermissionCodes.Party.Promise.Add, PermissionCodes.Party.Promise.Edit);
+        var manager = await scenario.SignInManagerWithPermissionsAsync(PermissionCodes.Customers.Promise.View, PermissionCodes.Customers.Promise.Add, PermissionCodes.Customers.Promise.Edit);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync(PromisesUrl, NewPromise(secondStoreId, customerId, 50))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync($"{PromisesUrl}?storeId={secondStoreId}")).StatusCode);
@@ -188,7 +190,7 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     public async Task Each_promise_action_needs_its_own_permission()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var customerId = await CreatePartyAsync(scenario.OwnerClient, "Guarded");
+        var customerId = await CreateCustomerAsync(scenario.OwnerClient, "Guarded");
         var promiseId = await CreatePromiseAsync(scenario.OwnerClient, NewPromise(scenario.FirstStoreId, customerId, 100));
         var nothing = await scenario.SignInUserWithPermissionsAsync(RoleCodes.CashierSalesman, [scenario.FirstStoreId]);
 
@@ -197,7 +199,7 @@ public class PromiseApiTests(ApiTestEnvironment environment)
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.PostAsJsonAsync(PromisesUrl, NewPromise(scenario.FirstStoreId, customerId, 10))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.DeleteAsync($"{PromisesUrl}/{promiseId}?rowVersion=1")).StatusCode);
 
-        var viewer = await scenario.SignInManagerWithPermissionsAsync(PermissionCodes.Party.Promise.View);
+        var viewer = await scenario.SignInManagerWithPermissionsAsync(PermissionCodes.Customers.Promise.View);
         Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync(PromisesUrl)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync(PromisesUrl, NewPromise(scenario.FirstStoreId, customerId, 10))).StatusCode);
     }
@@ -207,7 +209,7 @@ public class PromiseApiTests(ApiTestEnvironment environment)
     {
         var companyA = await OwnerCompanyScenario.CreateAsync(environment);
         var companyB = await OwnerCompanyScenario.CreateAsync(environment);
-        var customerOfA = await CreatePartyAsync(companyA.OwnerClient, "Customer of A");
+        var customerOfA = await CreateCustomerAsync(companyA.OwnerClient, "Customer of A");
         var promiseOfA = await CreatePromiseAsync(companyA.OwnerClient, NewPromise(companyA.FirstStoreId, customerOfA, 100));
 
         Assert.Equal(0, (await ListAsync(companyB.OwnerClient)).GetProperty("promises").GetProperty("totalCount").GetInt32());

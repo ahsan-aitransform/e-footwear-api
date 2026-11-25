@@ -17,8 +17,8 @@ public interface IPromiseRepository
     /// <summary>"Delete" of the docx: the promise is cancelled, never removed, so the history stays.</summary>
     Task CancelAsync(Guid promiseId, long rowVersion, CancellationToken cancellationToken);
 
-    Task<CustomerBalanceResponse?> GetCustomerBalanceAsync(Guid customerPartyId, CancellationToken cancellationToken);
+    Task<CustomerBalanceResponse?> GetCustomerBalanceAsync(Guid customerId, CancellationToken cancellationToken);
 
-    /// <summary>True when the party exists, is not deleted, is active and is marked as a customer.</summary>
-    Task<bool> IsActiveCustomerAsync(Guid customerPartyId, CancellationToken cancellationToken);
+    /// <summary>True when the customer exists, is not deleted and is active.</summary>
+    Task<bool> IsActiveCustomerAsync(Guid customerId, CancellationToken cancellationToken);
 }

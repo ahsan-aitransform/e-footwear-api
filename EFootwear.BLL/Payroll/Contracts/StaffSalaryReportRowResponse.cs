@@ -5,7 +5,7 @@ public sealed record StaffSalaryReportRowResponse(
     DateOnly PeriodMonth,
     Guid StoreId,
     string StoreName,
-    Guid EmployeePartyId,
+    Guid StaffId,
     string EmployeeCode,
     string EmployeeName,
     string? Designation,

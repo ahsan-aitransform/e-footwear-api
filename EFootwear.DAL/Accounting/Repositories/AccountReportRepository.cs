@@ -5,13 +5,14 @@ using EFootwear.BLL.Common;
 using EFootwear.DAL.Common;
 using EFootwear.DAL.Persistence;
 using EFootwear.Domain.Accounting;
+using EFootwear.Domain.Contacts;
 using Microsoft.EntityFrameworkCore;
 
 namespace EFootwear.DAL.Accounting.Repositories;
 
 /// <summary>
 /// The account reports. Figures come from the journal through the SQL report functions (rpt.account_ledger, rpt.trial_balance,
-/// rpt.account_balance, rpt.general_journal), which check the REPORT_ACCOUNTS permission inside the database. The party balances of the
+/// rpt.account_balance, rpt.general_journal), which check the REPORT_ACCOUNTS permission inside the database. The customer, vendor and staff balances of the
 /// Account Balance report have no report function, so that query checks the same permission itself. Totals are separate aggregates and rows are
 /// joined one to one, so amounts are never multiplied by a join.
 /// </summary>
@@ -23,7 +24,7 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
     // A voucher entry carries its voucher type; the reversal entry of a voided voucher keeps its own source (VOUCHER_VOID) but shows the voucher number.
     private const string GeneralJournalSelection = """
         with journal as (
-            select g.out_entry_id, g.out_entry_date, g.out_line_no, g.out_account_code, g.out_account_name, g.out_party_name,
+            select g.out_entry_id, g.out_entry_date, g.out_line_no, g.out_account_code, g.out_account_name, g.out_contact_name,
                    g.out_debit, g.out_credit, g.out_description, e.store_id, st.name as store_name,
                    case when g.out_source_type = 'VOUCHER' then v.voucher_type else g.out_source_type end as type_code, v.voucher_no
               from rpt.general_journal({0}, {1}, {2}, {3}) g
@@ -86,9 +87,9 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
             new AccountBalanceTypeOptionResponse(AccountReportRules.MainTypeFilterPrefix + mainType.Code, mainType.DisplayName)));
         options.AddRange(groups.Select(group =>
             new AccountBalanceTypeOptionResponse(AccountReportRules.GroupFilterPrefix + group.GroupCode, $"{group.GroupCode} {group.Name}")));
-        options.Add(new AccountBalanceTypeOptionResponse(AccountReportRules.PartiesFilterPrefix + AccountReportRules.PartyTypeCustomer, "Customers"));
-        options.Add(new AccountBalanceTypeOptionResponse(AccountReportRules.PartiesFilterPrefix + AccountReportRules.PartyTypeVendor, "Vendors"));
-        options.Add(new AccountBalanceTypeOptionResponse(AccountReportRules.PartiesFilterPrefix + AccountReportRules.PartyTypeStaff, "Staff"));
+        options.Add(new AccountBalanceTypeOptionResponse(AccountReportRules.ContactsFilterPrefix + ContactKindCodes.Customer, "Customers"));
+        options.Add(new AccountBalanceTypeOptionResponse(AccountReportRules.ContactsFilterPrefix + ContactKindCodes.Vendor, "Vendors"));
+        options.Add(new AccountBalanceTypeOptionResponse(AccountReportRules.ContactsFilterPrefix + ContactKindCodes.Staff, "Staff"));
         return options;
     }
 
@@ -117,10 +118,10 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
         var pageSize = pageRequest.PageSize;
         var rows = await databaseContext.Database.SqlQuery<LedgerRow>($"""
             select t.out_entry_date as "EntryDate", t.out_entry_id as "EntryId", t.out_source_type as "SourceTypeCode",
-                   t.out_description as "Description", t.out_party_id as "PartyId", t.out_debit as "DebitAmount",
+                   t.out_description as "Description", t.out_contact_kind as "ContactKindCode", t.out_contact_id as "ContactId", t.out_debit as "DebitAmount",
                    t.out_credit as "CreditAmount", t.out_running as "RunningBalance"
               from rpt.account_ledger({companyId}, {account.AccountId}, {fromDate}, {toDate}, {storeId})
-                   with ordinality as t(out_entry_date, out_entry_id, out_source_type, out_description, out_party_id,
+                   with ordinality as t(out_entry_date, out_entry_id, out_source_type, out_description, out_contact_kind, out_contact_id,
                                         out_debit, out_credit, out_running, line_order)
              order by t.line_order
              offset {skippedLineCount} limit {pageSize}
@@ -129,7 +130,10 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
         var closingBalance = openingBalance + totals.TotalDebitAmount - totals.TotalCreditAmount;
         var lines = new PagedResult<AccountLedgerRowResponse>(
             rows.Select(row => new AccountLedgerRowResponse(
-                row.EntryDate, row.EntryId, row.SourceTypeCode, includeDescriptions ? row.Description : null, row.PartyId,
+                row.EntryDate, row.EntryId, row.SourceTypeCode, includeDescriptions ? row.Description : null, row.ContactKindCode,
+                row.ContactKindCode == ContactKindCodes.Customer ? row.ContactId : null,
+                row.ContactKindCode == ContactKindCodes.Vendor ? row.ContactId : null,
+                row.ContactKindCode == ContactKindCodes.Staff ? row.ContactId : null,
                 row.DebitAmount, row.CreditAmount, Math.Abs(row.RunningBalance), BalanceSideCodes.SideOf(row.RunningBalance))).ToList(),
             pageRequest.PageNumber, pageRequest.PageSize, totals.LineCount);
         return new AccountLedgerResponse(
@@ -146,27 +150,33 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
         var companyId = currentUser.CompanyId;
 
         List<BalanceRow> balances;
-        if (accountTypeFilter.StartsWith(AccountReportRules.PartiesFilterPrefix, StringComparison.Ordinal))
+        string? contactKindCode = null;
+        if (accountTypeFilter.StartsWith(AccountReportRules.ContactsFilterPrefix, StringComparison.Ordinal))
         {
-            var partyTypeCode = accountTypeFilter[AccountReportRules.PartiesFilterPrefix.Length..];
+            contactKindCode = accountTypeFilter[AccountReportRules.ContactsFilterPrefix.Length..];
             var userId = currentUser.UserId;
-            // No report function exists for party balances as on a date: apply the same permission check the other account reports get from the database.
+            // No report function exists for customer, vendor and staff balances as on a date: apply the same permission check the other account reports get from the database.
             await databaseContext.Database.ExecuteSqlAsync($"select sec.require_permission({companyId}, {userId}, {AccountPermissionCode})", cancellationToken);
-            balances = await databaseContext.Database.SqlQuery<BalanceRow>($"""
-                select cast(null as uuid) as "AccountId", p.id as "PartyId", p.code as "Code", p.name as "Title",
-                       case when p.is_customer then 'Customer' when p.is_vendor then 'Vendor' else 'Staff' end as "TypeTitle",
+            // The table and the column are chosen from fixed names (never from user input), so they are safe to put into the SQL text.
+            var (contactTable, ownerColumn, typeTitle) = contactKindCode switch
+            {
+                ContactKindCodes.Customer => ("contacts.customers", "customer_id", "Customer"),
+                ContactKindCodes.Vendor => ("contacts.vendors", "vendor_id", "Vendor"),
+                _ => ("contacts.staff", "staff_id", "Staff"),
+            };
+            balances = await databaseContext.Database.SqlQueryRaw<BalanceRow>("""
+                select cast(null as uuid) as "AccountId", p.id as "ContactId", p.code as "Code", p.name as "Title",
+                       '__TYPE_TITLE__' as "TypeTitle",
                        cast(sum(l.debit - l.credit) as bigint) as "Balance"
-                  from party.parties p
-                  join acct.journal_lines l on l.company_id = p.company_id and l.party_id = p.id and l.entry_date <= {asOfDate}
-                 where p.company_id = {companyId} and not p.is_deleted
-                   and (cast({storeId} as uuid) is null or l.store_id = cast({storeId} as uuid))
-                   and (({partyTypeCode} = 'CUSTOMER' and p.is_customer)
-                        or ({partyTypeCode} = 'VENDOR' and p.is_vendor)
-                        or ({partyTypeCode} = 'STAFF' and p.is_staff))
-                 group by p.id, p.code, p.name, p.is_customer, p.is_vendor
+                  from __CONTACT_TABLE__ p
+                  join acct.journal_lines l on l.company_id = p.company_id and l.__OWNER_COLUMN__ = p.id and l.entry_date <= cast({1} as date)
+                 where p.company_id = {0} and not p.is_deleted
+                   and (cast({2} as uuid) is null or l.store_id = cast({2} as uuid))
+                 group by p.id, p.code, p.name
                 having sum(l.debit - l.credit) <> 0
                  order by p.name
-                """).ToListAsync(cancellationToken);
+                """.Replace("__TYPE_TITLE__", typeTitle).Replace("__CONTACT_TABLE__", contactTable).Replace("__OWNER_COLUMN__", ownerColumn),
+                companyId, asOfDate, (object?)storeId ?? DBNull.Value).ToListAsync(cancellationToken);
         }
         else
         {
@@ -175,7 +185,7 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
             var groupCode = accountTypeFilter.StartsWith(AccountReportRules.GroupFilterPrefix, StringComparison.Ordinal)
                 ? accountTypeFilter[AccountReportRules.GroupFilterPrefix.Length..] : null;
             balances = await databaseContext.Database.SqlQuery<BalanceRow>($"""
-                select b.out_account_id as "AccountId", cast(null as uuid) as "PartyId", b.out_code as "Code", b.out_name as "Title",
+                select b.out_account_id as "AccountId", cast(null as uuid) as "ContactId", b.out_code as "Code", b.out_name as "Title",
                        coalesce(g.name, 'Group ' || a.group_code) as "TypeTitle", cast(b.out_balance as bigint) as "Balance"
                   from rpt.account_balance({companyId}, {asOfDate}, {storeId}) b
                   join acct.accounts a on a.company_id = {companyId} and a.id = b.out_account_id
@@ -194,7 +204,8 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
             _ => true,
         }).ToList();
         var rows = shown.Select(row => new AccountBalanceRowResponse(
-            row.AccountId, row.PartyId, row.Code, row.Title, row.TypeTitle, Math.Max(row.Balance, 0), Math.Max(-row.Balance, 0))).ToList();
+            row.AccountId, contactKindCode == ContactKindCodes.Customer ? row.ContactId : null, contactKindCode == ContactKindCodes.Vendor ? row.ContactId : null,
+            contactKindCode == ContactKindCodes.Staff ? row.ContactId : null, row.Code, row.Title, row.TypeTitle, Math.Max(row.Balance, 0), Math.Max(-row.Balance, 0))).ToList();
         return new AccountBalanceReportResponse(asOfDate, storeId, accountTypeFilter, amountTypeFilter, rows,
                                                 rows.Sum(row => row.DebitAmount), rows.Sum(row => row.CreditAmount));
     }
@@ -258,7 +269,7 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
             {{GeneralJournalSelection}}
             select journal.out_entry_id as "EntryId", journal.out_entry_date as "EntryDate", journal.out_line_no as "LineNumber",
                    journal.store_id as "StoreId", journal.store_name as "StoreName", journal.out_account_code as "AccountCode",
-                   journal.out_account_name as "AccountTitle", journal.out_party_name as "PartyName", journal.type_code as "TypeCode",
+                   journal.out_account_name as "AccountTitle", journal.out_contact_name as "ContactName", journal.type_code as "TypeCode",
                    journal.voucher_no as "VoucherNumber", journal.out_description as "Description",
                    journal.out_debit as "DebitAmount", journal.out_credit as "CreditAmount"
               from journal {{typeFilter}}
@@ -268,7 +279,7 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
 
         var lines = new PagedResult<GeneralJournalRowResponse>(
             rows.Select(row => new GeneralJournalRowResponse(
-                row.EntryId, row.EntryDate, row.LineNumber, row.StoreId, row.StoreName, row.AccountCode, row.AccountTitle, row.PartyName,
+                row.EntryId, row.EntryDate, row.LineNumber, row.StoreId, row.StoreName, row.AccountCode, row.AccountTitle, row.ContactName,
                 row.TypeCode, row.VoucherNumber, row.Description, row.DebitAmount, row.CreditAmount)).ToList(),
             pageRequest.PageNumber, pageRequest.PageSize, totals.LineCount);
         return new GeneralJournalResponse(fromDate, toDate, storeId, typeCode, totals.TotalDebitAmount, totals.TotalCreditAmount, lines);
@@ -311,7 +322,8 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
         public Guid EntryId { get; set; }
         public string SourceTypeCode { get; set; } = "";
         public string? Description { get; set; }
-        public Guid? PartyId { get; set; }
+        public string? ContactKindCode { get; set; }
+        public Guid? ContactId { get; set; }
         public long DebitAmount { get; set; }
         public long CreditAmount { get; set; }
         public long RunningBalance { get; set; }
@@ -320,7 +332,7 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
     private sealed class BalanceRow
     {
         public Guid? AccountId { get; set; }
-        public Guid? PartyId { get; set; }
+        public Guid? ContactId { get; set; }
         public string Code { get; set; } = "";
         public string Title { get; set; } = "";
         public string TypeTitle { get; set; } = "";
@@ -355,7 +367,7 @@ public sealed class AccountReportRepository(DatabaseSession databaseSession, ICu
         public string StoreName { get; set; } = "";
         public string AccountCode { get; set; } = "";
         public string AccountTitle { get; set; } = "";
-        public string? PartyName { get; set; }
+        public string? ContactName { get; set; }
         public string TypeCode { get; set; } = "";
         public long? VoucherNumber { get; set; }
         public string? Description { get; set; }

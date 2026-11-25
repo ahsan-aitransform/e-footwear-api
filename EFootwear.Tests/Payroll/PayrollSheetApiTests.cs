@@ -5,7 +5,7 @@ using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Accounting;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using EFootwear.Tests.Parties;
+using EFootwear.Tests.Contacts;
 using static EFootwear.Tests.Payroll.PayrollTestHelpers;
 
 namespace EFootwear.Tests.Payroll;
@@ -20,8 +20,8 @@ public class PayrollSheetApiTests(ApiTestEnvironment environment)
 {
     private static readonly string[] SalaryPermissionCodes =
     [
-        PermissionCodes.Party.NewSalarySheet.View, PermissionCodes.Party.NewSalarySheet.Add, PermissionCodes.Party.NewSalarySheet.Edit,
-        PermissionCodes.Party.ViewSalarySheet.View,
+        PermissionCodes.HumanResources.NewSalarySheet.View, PermissionCodes.HumanResources.NewSalarySheet.Add, PermissionCodes.HumanResources.NewSalarySheet.Edit,
+        PermissionCodes.HumanResources.ViewSalarySheet.View,
         PermissionCodes.HumanResources.PayrollRuns.Approve,
         PermissionCodes.HumanResources.SalaryPayments.View, PermissionCodes.HumanResources.SalaryPayments.Add,
         PermissionCodes.RestrictedOperations.ExpensesAndPayroll.PayrollPrepare, PermissionCodes.RestrictedOperations.ExpensesAndPayroll.PayrollApprove,
@@ -109,7 +109,7 @@ public class PayrollSheetApiTests(ApiTestEnvironment environment)
         Assert.Equal(HttpStatusCode.UnprocessableEntity, rebuild.StatusCode);   // the database refuses to rebuild anything but a draft
 
         var lateAdjustment = await scenario.OwnerClient.PostAsJsonAsync(AdjustmentsUrl,
-            new { employeePartyId = staffId, month = SalaryMonth, adjustmentTypeCode = "INCENTIVE", amount = 1_000, reason = "Too late" });
+            new { staffId = staffId, month = SalaryMonth, adjustmentTypeCode = "INCENTIVE", amount = 1_000, reason = "Too late" });
         Assert.Equal(HttpStatusCode.Conflict, lateAdjustment.StatusCode);
     }
 
@@ -198,10 +198,10 @@ public class PayrollSheetApiTests(ApiTestEnvironment environment)
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
         var staffId = await CreateStaffAsync(environment, scenario, "Adjusted Staff", scenario.FirstStoreId, 20_000);
-        var customerId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Not Staff Customer");
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Not Staff Customer");
 
-        async Task<HttpStatusCode> Post(Guid employeePartyId, string type, long amount, string? reason = null) =>
-            (await scenario.OwnerClient.PostAsJsonAsync(AdjustmentsUrl, new { employeePartyId, month = SalaryMonth, adjustmentTypeCode = type, amount, reason })).StatusCode;
+        async Task<HttpStatusCode> Post(Guid staffId, string type, long amount, string? reason = null) =>
+            (await scenario.OwnerClient.PostAsJsonAsync(AdjustmentsUrl, new { staffId, month = SalaryMonth, adjustmentTypeCode = type, amount, reason })).StatusCode;
 
         Assert.Equal(HttpStatusCode.BadRequest, await Post(staffId, "INCENTIVE", 0));
         Assert.Equal(HttpStatusCode.BadRequest, await Post(staffId, "INCENTIVE", -10));
@@ -233,13 +233,13 @@ public class PayrollSheetApiTests(ApiTestEnvironment environment)
         var secondStoreId = await scenario.CreateStoreAsync("ST2");
         var stayingId = await CreateStaffAsync(environment, scenario, "Staying Staff", scenario.FirstStoreId, 10_000);
         var movingId = await CreateStaffAsync(environment, scenario, "Moving Staff", scenario.FirstStoreId, 12_000);
-        await scenario.OwnerClient.PostAsJsonAsync($"{PartyTestHelpers.PartiesUrl}/{movingId}/staff-transfers", new { toStoreId = secondStoreId, effectiveOn = "2026-10-15" });
+        await scenario.OwnerClient.PostAsJsonAsync($"{ContactTestHelpers.StaffMembersUrl}/{movingId}/transfers", new { toStoreId = secondStoreId, effectiveOn = "2026-10-15" });
 
         var firstStoreSheet = await PrepareSheetAsync(scenario.OwnerClient, scenario.FirstStoreId);
         var secondStoreSheet = await PrepareSheetAsync(scenario.OwnerClient, secondStoreId);
 
-        Assert.Equal(stayingId, Assert.Single(firstStoreSheet.GetProperty("lines").EnumerateArray()).GetProperty("employeePartyId").GetGuid());
-        Assert.Equal(movingId, Assert.Single(secondStoreSheet.GetProperty("lines").EnumerateArray()).GetProperty("employeePartyId").GetGuid());
+        Assert.Equal(stayingId, Assert.Single(firstStoreSheet.GetProperty("lines").EnumerateArray()).GetProperty("staffId").GetGuid());
+        Assert.Equal(movingId, Assert.Single(secondStoreSheet.GetProperty("lines").EnumerateArray()).GetProperty("staffId").GetGuid());
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public class PayrollSheetApiTests(ApiTestEnvironment environment)
 
         var nobody = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId]);
         var screenOnly = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId],
-            PermissionCodes.Party.NewSalarySheet.Add, PermissionCodes.Party.NewSalarySheet.Edit, PermissionCodes.HumanResources.PayrollRuns.Approve,
+            PermissionCodes.HumanResources.NewSalarySheet.Add, PermissionCodes.HumanResources.NewSalarySheet.Edit, PermissionCodes.HumanResources.PayrollRuns.Approve,
             PermissionCodes.HumanResources.SalaryPayments.Add);   // without PAYROLL_PREPARE / PAYROLL_APPROVE
         var legacyOnly = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId],
             PermissionCodes.RestrictedOperations.ExpensesAndPayroll.PayrollPrepare, PermissionCodes.RestrictedOperations.ExpensesAndPayroll.PayrollApprove);
@@ -271,12 +271,12 @@ public class PayrollSheetApiTests(ApiTestEnvironment environment)
         Assert.Equal(HttpStatusCode.Forbidden, (await legacyOnly.PostAsync(ApproveSheetUrl(runId), null)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await screenOnly.PostAsJsonAsync(LinePaymentsUrl(lineId), PaymentBody(1_000))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await screenOnly.PostAsJsonAsync(AdjustmentsUrl,
-            new { employeePartyId = staffId, month = SalaryMonth, adjustmentTypeCode = "INCENTIVE", amount = 100 })).StatusCode);
+            new { staffId = staffId, month = SalaryMonth, adjustmentTypeCode = "INCENTIVE", amount = 100 })).StatusCode);
 
         // Both together work for the steps that stay inside the person's own store.
         Assert.Equal(HttpStatusCode.OK, (await accountant.PostAsJsonAsync(PrepareSheetUrl, new { storeId = scenario.FirstStoreId, month = SalaryMonth })).StatusCode);
         Assert.Equal(HttpStatusCode.Created, (await accountant.PostAsJsonAsync(AdjustmentsUrl,
-            new { employeePartyId = staffId, month = SalaryMonth, adjustmentTypeCode = "INCENTIVE", amount = 100 })).StatusCode);
+            new { staffId = staffId, month = SalaryMonth, adjustmentTypeCode = "INCENTIVE", amount = 100 })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await accountant.GetAsync(SheetUrl(scenario.FirstStoreId))).StatusCode);
 
         // The company owner (who has every permission and may work in every store) approves and pays.
@@ -331,7 +331,7 @@ public class PayrollSheetApiTests(ApiTestEnvironment environment)
         Assert.Equal(HttpStatusCode.NotFound, (await firstStoreManager.PostAsJsonAsync(LinePaymentsUrl(otherLineId), PaymentBody(1_000))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await firstStoreManager.GetAsync(LinePaymentsUrl(otherLineId))).StatusCode);
         var adjustmentForOtherStore = await firstStoreManager.PostAsJsonAsync(AdjustmentsUrl,
-            new { employeePartyId = otherStaffId, month = SalaryMonth, adjustmentTypeCode = "INCENTIVE", amount = 100 });
+            new { staffId = otherStaffId, month = SalaryMonth, adjustmentTypeCode = "INCENTIVE", amount = 100 });
         Assert.Equal(HttpStatusCode.Forbidden, adjustmentForOtherStore.StatusCode);
 
         var visiblePayments = await OwnerCompanyScenario.ReadJsonAsync(await firstStoreManager.GetAsync(PaymentsUrl));

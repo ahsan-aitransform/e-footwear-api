@@ -21,7 +21,7 @@ public sealed class PayrollController(PayrollSheetService payrollSheetService) :
 {
     /// <summary>The sheet of a store and month, or 204 when none has been built yet.</summary>
     [HttpGet(ApiRoutes.Payroll.Sheet)]
-    [RequirePermission(PermissionCodes.Party.ViewSalarySheet.View)]
+    [RequirePermission(PermissionCodes.HumanResources.ViewSalarySheet.View)]
     public async Task<ActionResult<PayrollSheetResponse>> GetSheet([FromQuery] Guid storeId, [FromQuery] DateOnly month, CancellationToken cancellationToken)
     {
         var sheet = await payrollSheetService.GetSheetAsync(storeId, month, cancellationToken);
@@ -29,7 +29,7 @@ public sealed class PayrollController(PayrollSheetService payrollSheetService) :
     }
 
     [HttpPost(ApiRoutes.Payroll.PrepareSheet)]
-    [RequirePermission(PermissionCodes.Party.NewSalarySheet.Add)]
+    [RequirePermission(PermissionCodes.HumanResources.NewSalarySheet.Add)]
     [RequirePermission(PermissionCodes.RestrictedOperations.ExpensesAndPayroll.PayrollPrepare)]
     public async Task<ActionResult<PayrollSheetResponse>> PrepareSheet(PrepareSalarySheetRequest request, CancellationToken cancellationToken) =>
         Ok(await payrollSheetService.PrepareSheetAsync(request, cancellationToken));
@@ -41,13 +41,13 @@ public sealed class PayrollController(PayrollSheetService payrollSheetService) :
         Ok(await payrollSheetService.ApproveSheetAsync(runId, cancellationToken));
 
     [HttpGet(ApiRoutes.Payroll.Adjustments)]
-    [RequirePermission(PermissionCodes.Party.NewSalarySheet.View)]
+    [RequirePermission(PermissionCodes.HumanResources.NewSalarySheet.View)]
     public async Task<ActionResult<IReadOnlyList<PayrollAdjustmentResponse>>> ListAdjustments(
         [FromQuery] Guid storeId, [FromQuery] DateOnly month, CancellationToken cancellationToken) =>
         Ok(await payrollSheetService.ListAdjustmentsAsync(storeId, month, cancellationToken));
 
     [HttpPost(ApiRoutes.Payroll.Adjustments)]
-    [RequirePermission(PermissionCodes.Party.NewSalarySheet.Edit)]
+    [RequirePermission(PermissionCodes.HumanResources.NewSalarySheet.Edit)]
     [RequirePermission(PermissionCodes.RestrictedOperations.ExpensesAndPayroll.PayrollPrepare)]
     public async Task<ActionResult<CreatedIdResponse>> CreateAdjustment(CreatePayrollAdjustmentRequest request, CancellationToken cancellationToken) =>
         StatusCode(StatusCodes.Status201Created, await payrollSheetService.CreateAdjustmentAsync(request, cancellationToken));

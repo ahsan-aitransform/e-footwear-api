@@ -6,7 +6,7 @@ using EFootwear.Domain.Common;
 using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using EFootwear.Tests.Parties;
+using EFootwear.Tests.Contacts;
 
 namespace EFootwear.Tests.Accounting;
 
@@ -28,10 +28,10 @@ public class OpeningBalanceApiTests(ApiTestEnvironment environment)
         sheet.GetProperty("rows").EnumerateArray().Single(row => row.GetProperty("code").GetString() == code);
 
     private static object AccountLine(Guid accountId, long debit, long credit) =>
-        new { accountId = (Guid?)accountId, partyId = (Guid?)null, debitAmount = debit, creditAmount = credit };
+        new { accountId = (Guid?)accountId, debitAmount = debit, creditAmount = credit };
 
-    private static object PartyLine(Guid partyId, long debit, long credit) =>
-        new { accountId = (Guid?)null, partyId = (Guid?)partyId, debitAmount = debit, creditAmount = credit };
+    private static object CustomerLine(Guid customerId, long debit, long credit) =>
+        new { accountId = (Guid?)null, customerId = (Guid?)customerId, debitAmount = debit, creditAmount = credit };
 
     private static object Save(Guid storeId, string entryDate, params object[] lines) => new { storeId, entryDate, lines };
 
@@ -40,7 +40,7 @@ public class OpeningBalanceApiTests(ApiTestEnvironment environment)
             "select coalesce(sum(debit - credit), 0)::bigint from acct.journal_lines where company_id = $1 and account_id = $2", companyId, accountId);
 
     [Fact]
-    public async Task The_head_office_sheet_lists_accounts_and_parties_but_not_the_accounts_the_system_manages()
+    public async Task The_head_office_sheet_lists_accounts_customers_vendors_and_staff_but_not_the_accounts_the_system_manages()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
         var sheet = await GetSheetAsync(scenario.OwnerClient, Guid.Empty);
@@ -49,11 +49,11 @@ public class OpeningBalanceApiTests(ApiTestEnvironment environment)
         Assert.Contains("1010", codes);     // cash in hand (head office)
         Assert.Contains("1020", codes);     // bank
         Assert.Contains("3010", codes);     // capital
-        Assert.Contains("WALKIN", codes);   // the default customer is a party row
+        Assert.Contains("WALKIN", codes);   // the default customer is listed with the head office
         Assert.DoesNotContain("5020", codes);   // stock on hand: opening stock belongs to inventory
         Assert.DoesNotContain("5010", codes);   // stock in transit
         Assert.DoesNotContain("3020", codes);   // opening balance equity itself
-        Assert.DoesNotContain("1030", codes);   // the party control account: parties have their own rows
+        Assert.DoesNotContain("1030", codes);   // the subledger control account: customers, vendors and staff have their own rows
         Assert.Equal(0, sheet.GetProperty("totalDebitAmount").GetInt64());
     }
 
@@ -79,7 +79,7 @@ public class OpeningBalanceApiTests(ApiTestEnvironment environment)
         var first = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.PutAsJsonAsync(OpeningBalancesUrl, Save(Guid.Empty, "2026-01-01", AccountLine(cashAccountId, 100_000, 0))));
         Assert.Equal(1, first.GetProperty("postedCount").GetInt32());
         Assert.Equal(100_000, await NetBalanceOfAccountAsync(scenario.CompanyId, cashAccountId));
-        Assert.Equal(0, await PartyTestHelpers.JournalDifferenceAsync(environment, scenario.CompanyId));
+        Assert.Equal(0, await ContactTestHelpers.JournalDifferenceAsync(environment, scenario.CompanyId));
 
         // saving the same screen twice posts nothing twice
         var again = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.PutAsJsonAsync(OpeningBalancesUrl, Save(Guid.Empty, "2026-01-01", AccountLine(cashAccountId, 100_000, 0))));
@@ -102,7 +102,7 @@ public class OpeningBalanceApiTests(ApiTestEnvironment environment)
         var cleared = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.PutAsJsonAsync(OpeningBalancesUrl, Save(Guid.Empty, "2026-01-01", AccountLine(cashAccountId, 0, 0))));
         Assert.Equal(1, cleared.GetProperty("clearedCount").GetInt32());
         Assert.Equal(0, await NetBalanceOfAccountAsync(scenario.CompanyId, cashAccountId));
-        Assert.Equal(0, await PartyTestHelpers.JournalDifferenceAsync(environment, scenario.CompanyId));
+        Assert.Equal(0, await ContactTestHelpers.JournalDifferenceAsync(environment, scenario.CompanyId));
     }
 
     [Fact]
@@ -127,31 +127,31 @@ public class OpeningBalanceApiTests(ApiTestEnvironment environment)
              where l.company_id = $1 and a.system_role = 'OPENING_EQUITY'
             """, scenario.CompanyId);
         Assert.Equal(-14_400, equityNet);
-        Assert.Equal(0, await PartyTestHelpers.JournalDifferenceAsync(environment, scenario.CompanyId));
+        Assert.Equal(0, await ContactTestHelpers.JournalDifferenceAsync(environment, scenario.CompanyId));
     }
 
     [Fact]
-    public async Task A_party_opening_balance_shows_in_the_party_balance_and_matches_the_ledger()
+    public async Task A_customer_opening_balance_shows_in_the_customer_balance_and_matches_the_ledger()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var partyId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Ali Traders");
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Ali Traders");
 
-        await TestScenarioBuilder.EnsureSuccessAsync(await scenario.OwnerClient.PutAsJsonAsync(OpeningBalancesUrl, Save(Guid.Empty, "2026-01-01", PartyLine(partyId, 5_000, 0))));
+        await TestScenarioBuilder.EnsureSuccessAsync(await scenario.OwnerClient.PutAsJsonAsync(OpeningBalancesUrl, Save(Guid.Empty, "2026-01-01", CustomerLine(customerId, 5_000, 0))));
 
-        var party = await PartyTestHelpers.GetPartyAsync(scenario.OwnerClient, partyId);
-        Assert.Equal(5_000, party.GetProperty("balanceAmount").GetInt64());
-        Assert.Equal("DEBIT", party.GetProperty("openingBalance").GetProperty("sideCode").GetString());
-        Assert.Equal(5_000, party.GetProperty("openingBalance").GetProperty("amount").GetInt64());
+        var customer = await ContactTestHelpers.GetCustomerAsync(scenario.OwnerClient, customerId);
+        Assert.Equal(5_000, customer.GetProperty("balanceAmount").GetInt64());
+        Assert.Equal("DEBIT", customer.GetProperty("openingBalance").GetProperty("sideCode").GetString());
+        Assert.Equal(5_000, customer.GetProperty("openingBalance").GetProperty("amount").GetInt64());
 
         var projection = await environment.Database.QueryScalarAsOwnerAsync<long>(
-            "select balance from party.party_balances where company_id = $1 and party_id = $2", scenario.CompanyId, partyId);
+            "select balance from contacts.customer_balances where company_id = $1 and customer_id = $2", scenario.CompanyId, customerId);
         var fromJournal = await environment.Database.QueryScalarAsOwnerAsync<long>(
-            "select coalesce(sum(debit - credit), 0)::bigint from acct.journal_lines where company_id = $1 and party_id = $2", scenario.CompanyId, partyId);
+            "select coalesce(sum(debit - credit), 0)::bigint from acct.journal_lines where company_id = $1 and customer_id = $2", scenario.CompanyId, customerId);
         Assert.Equal(fromJournal, projection);
 
-        // changing it to a credit balance flips the party balance (reverse and repost)
-        await TestScenarioBuilder.EnsureSuccessAsync(await scenario.OwnerClient.PutAsJsonAsync(OpeningBalancesUrl, Save(Guid.Empty, "2026-01-01", PartyLine(partyId, 0, 2_500))));
-        Assert.Equal(-2_500, (await PartyTestHelpers.GetPartyAsync(scenario.OwnerClient, partyId)).GetProperty("balanceAmount").GetInt64());
+        // changing it to a credit balance flips the customer balance (reverse and repost)
+        await TestScenarioBuilder.EnsureSuccessAsync(await scenario.OwnerClient.PutAsJsonAsync(OpeningBalancesUrl, Save(Guid.Empty, "2026-01-01", CustomerLine(customerId, 0, 2_500))));
+        Assert.Equal(-2_500, (await ContactTestHelpers.GetCustomerAsync(scenario.OwnerClient, customerId)).GetProperty("balanceAmount").GetInt64());
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class OpeningBalanceApiTests(ApiTestEnvironment environment)
             Save(Guid.Empty, "2026-01-01", AccountLine(cashAccountId, 1, 0), AccountLine(cashAccountId, 2, 0)))).StatusCode);   // twice
         Assert.Equal(HttpStatusCode.BadRequest, (await scenario.OwnerClient.PutAsJsonAsync(OpeningBalancesUrl,
             Save(Guid.Empty, "2026-01-01"))).StatusCode);                                                               // nothing to save
-        Assert.Equal(0, await PartyTestHelpers.JournalDifferenceAsync(environment, scenario.CompanyId));
+        Assert.Equal(0, await ContactTestHelpers.JournalDifferenceAsync(environment, scenario.CompanyId));
     }
 
     [Fact]

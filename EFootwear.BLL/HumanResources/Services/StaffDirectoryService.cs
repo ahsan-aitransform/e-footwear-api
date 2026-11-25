@@ -22,9 +22,9 @@ public sealed class StaffDirectoryService(IStaffRepository staffRepository, Stor
         return await staffRepository.SearchStaffAsync(filter, normalizedPageRequest, cancellationToken);
     }
 
-    public async Task<StaffDetailResponse> GetAsync(Guid partyId, CancellationToken cancellationToken)
+    public async Task<StaffDetailResponse> GetAsync(Guid staffId, CancellationToken cancellationToken)
     {
-        var detail = await staffRepository.FindStaffDetailAsync(partyId, cancellationToken)
+        var detail = await staffRepository.FindStaffDetailAsync(staffId, cancellationToken)
             ?? throw new DomainException(ErrorKind.NotFound, "The staff member was not found.");
         if (!currentUser.CanAccessStore(detail.Profile.CurrentStoreId))
             throw new DomainException(ErrorKind.Forbidden, "You do not have access to the store of this staff member.");

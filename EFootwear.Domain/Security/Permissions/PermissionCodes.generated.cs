@@ -194,89 +194,74 @@ public static class PermissionCodes
             public const string Export = "PRODUCTS.PRICE_BANDS.EXPORT";
         }
     }
-    /// <summary>Party</summary>
-    public static class Party
+    /// <summary>Customers</summary>
+    public static class Customers
     {
-        /// <summary>New Party</summary>
-        public static class NewParty
+        /// <summary>New Customer</summary>
+        public static class NewCustomer
         {
-            public const string View = "PARTY.NEW_PARTY.VIEW";
-            public const string Add = "PARTY.NEW_PARTY.ADD";
-            public const string Edit = "PARTY.NEW_PARTY.EDIT";
-            public const string Delete = "PARTY.NEW_PARTY.DELETE";
-            public const string Print = "PARTY.NEW_PARTY.PRINT";
-            public const string Export = "PARTY.NEW_PARTY.EXPORT";
+            public const string View = "CUSTOMERS.NEW_CUSTOMER.VIEW";
+            public const string Add = "CUSTOMERS.NEW_CUSTOMER.ADD";
+            public const string Edit = "CUSTOMERS.NEW_CUSTOMER.EDIT";
+            public const string Delete = "CUSTOMERS.NEW_CUSTOMER.DELETE";
+            public const string Print = "CUSTOMERS.NEW_CUSTOMER.PRINT";
+            public const string Export = "CUSTOMERS.NEW_CUSTOMER.EXPORT";
         }
-        /// <summary>View Party</summary>
-        public static class ViewParty
+        /// <summary>View Customers</summary>
+        public static class ViewCustomers
         {
-            public const string View = "PARTY.VIEW_PARTY.VIEW";
-            public const string Edit = "PARTY.VIEW_PARTY.EDIT";
-            public const string Delete = "PARTY.VIEW_PARTY.DELETE";
-            public const string Print = "PARTY.VIEW_PARTY.PRINT";
-            public const string Export = "PARTY.VIEW_PARTY.EXPORT";
+            public const string View = "CUSTOMERS.VIEW_CUSTOMERS.VIEW";
+            public const string Edit = "CUSTOMERS.VIEW_CUSTOMERS.EDIT";
+            public const string Delete = "CUSTOMERS.VIEW_CUSTOMERS.DELETE";
+            public const string Print = "CUSTOMERS.VIEW_CUSTOMERS.PRINT";
+            public const string Export = "CUSTOMERS.VIEW_CUSTOMERS.EXPORT";
         }
-        /// <summary>Search Party</summary>
-        public static class SearchParty
+        /// <summary>Search Customer</summary>
+        public static class SearchCustomer
         {
-            public const string View = "PARTY.SEARCH_PARTY.VIEW";
+            public const string View = "CUSTOMERS.SEARCH_CUSTOMER.VIEW";
         }
-        /// <summary>Account Detail</summary>
-        public static class AccountDetail
+        /// <summary>Customer Account Detail</summary>
+        public static class CustomerAccountDetail
         {
-            public const string View = "PARTY.ACCOUNT_DETAIL.VIEW";
-            public const string Edit = "PARTY.ACCOUNT_DETAIL.EDIT";
-            public const string Delete = "PARTY.ACCOUNT_DETAIL.DELETE";
-            public const string Print = "PARTY.ACCOUNT_DETAIL.PRINT";
-            public const string Export = "PARTY.ACCOUNT_DETAIL.EXPORT";
+            public const string View = "CUSTOMERS.CUSTOMER_ACCOUNT_DETAIL.VIEW";
+            public const string Edit = "CUSTOMERS.CUSTOMER_ACCOUNT_DETAIL.EDIT";
+            public const string Delete = "CUSTOMERS.CUSTOMER_ACCOUNT_DETAIL.DELETE";
+            public const string Print = "CUSTOMERS.CUSTOMER_ACCOUNT_DETAIL.PRINT";
+            public const string Export = "CUSTOMERS.CUSTOMER_ACCOUNT_DETAIL.EXPORT";
         }
         /// <summary>Promise</summary>
         public static class Promise
         {
-            public const string View = "PARTY.PROMISE.VIEW";
-            public const string Add = "PARTY.PROMISE.ADD";
-            public const string Edit = "PARTY.PROMISE.EDIT";
-            public const string Delete = "PARTY.PROMISE.DELETE";
-            public const string Print = "PARTY.PROMISE.PRINT";
-            public const string Export = "PARTY.PROMISE.EXPORT";
+            public const string View = "CUSTOMERS.PROMISE.VIEW";
+            public const string Add = "CUSTOMERS.PROMISE.ADD";
+            public const string Edit = "CUSTOMERS.PROMISE.EDIT";
+            public const string Delete = "CUSTOMERS.PROMISE.DELETE";
+            public const string Print = "CUSTOMERS.PROMISE.PRINT";
+            public const string Export = "CUSTOMERS.PROMISE.EXPORT";
         }
+    }
+    /// <summary>Cash Management</summary>
+    public static class CashManagement
+    {
         /// <summary>Cash Calculator</summary>
         public static class CashCalculator
         {
-            public const string View = "PARTY.CASH_CALCULATOR.VIEW";
-            public const string Add = "PARTY.CASH_CALCULATOR.ADD";
-            public const string Edit = "PARTY.CASH_CALCULATOR.EDIT";
-            public const string Delete = "PARTY.CASH_CALCULATOR.DELETE";
-            public const string Print = "PARTY.CASH_CALCULATOR.PRINT";
-            public const string Export = "PARTY.CASH_CALCULATOR.EXPORT";
+            public const string View = "CASH_MANAGEMENT.CASH_CALCULATOR.VIEW";
+            public const string Add = "CASH_MANAGEMENT.CASH_CALCULATOR.ADD";
+            public const string Edit = "CASH_MANAGEMENT.CASH_CALCULATOR.EDIT";
+            public const string Delete = "CASH_MANAGEMENT.CASH_CALCULATOR.DELETE";
+            public const string Print = "CASH_MANAGEMENT.CASH_CALCULATOR.PRINT";
+            public const string Export = "CASH_MANAGEMENT.CASH_CALCULATOR.EXPORT";
         }
         /// <summary>View Cash Detail</summary>
         public static class ViewCashDetail
         {
-            public const string View = "PARTY.VIEW_CASH_DETAIL.VIEW";
-            public const string Edit = "PARTY.VIEW_CASH_DETAIL.EDIT";
-            public const string Delete = "PARTY.VIEW_CASH_DETAIL.DELETE";
-            public const string Print = "PARTY.VIEW_CASH_DETAIL.PRINT";
-            public const string Export = "PARTY.VIEW_CASH_DETAIL.EXPORT";
-        }
-        /// <summary>New Salary Sheet</summary>
-        public static class NewSalarySheet
-        {
-            public const string View = "PARTY.NEW_SALARY_SHEET.VIEW";
-            public const string Add = "PARTY.NEW_SALARY_SHEET.ADD";
-            public const string Edit = "PARTY.NEW_SALARY_SHEET.EDIT";
-            public const string Delete = "PARTY.NEW_SALARY_SHEET.DELETE";
-            public const string Print = "PARTY.NEW_SALARY_SHEET.PRINT";
-            public const string Export = "PARTY.NEW_SALARY_SHEET.EXPORT";
-        }
-        /// <summary>View Salary Sheet</summary>
-        public static class ViewSalarySheet
-        {
-            public const string View = "PARTY.VIEW_SALARY_SHEET.VIEW";
-            public const string Edit = "PARTY.VIEW_SALARY_SHEET.EDIT";
-            public const string Delete = "PARTY.VIEW_SALARY_SHEET.DELETE";
-            public const string Print = "PARTY.VIEW_SALARY_SHEET.PRINT";
-            public const string Export = "PARTY.VIEW_SALARY_SHEET.EXPORT";
+            public const string View = "CASH_MANAGEMENT.VIEW_CASH_DETAIL.VIEW";
+            public const string Edit = "CASH_MANAGEMENT.VIEW_CASH_DETAIL.EDIT";
+            public const string Delete = "CASH_MANAGEMENT.VIEW_CASH_DETAIL.DELETE";
+            public const string Print = "CASH_MANAGEMENT.VIEW_CASH_DETAIL.PRINT";
+            public const string Export = "CASH_MANAGEMENT.VIEW_CASH_DETAIL.EXPORT";
         }
     }
     /// <summary>Invoice</summary>
@@ -1253,6 +1238,39 @@ public static class PermissionCodes
     /// <summary>Vendors</summary>
     public static class Vendors
     {
+        /// <summary>New Vendor</summary>
+        public static class NewVendor
+        {
+            public const string View = "VENDORS.NEW_VENDOR.VIEW";
+            public const string Add = "VENDORS.NEW_VENDOR.ADD";
+            public const string Edit = "VENDORS.NEW_VENDOR.EDIT";
+            public const string Delete = "VENDORS.NEW_VENDOR.DELETE";
+            public const string Print = "VENDORS.NEW_VENDOR.PRINT";
+            public const string Export = "VENDORS.NEW_VENDOR.EXPORT";
+        }
+        /// <summary>View Vendors</summary>
+        public static class ViewVendors
+        {
+            public const string View = "VENDORS.VIEW_VENDORS.VIEW";
+            public const string Edit = "VENDORS.VIEW_VENDORS.EDIT";
+            public const string Delete = "VENDORS.VIEW_VENDORS.DELETE";
+            public const string Print = "VENDORS.VIEW_VENDORS.PRINT";
+            public const string Export = "VENDORS.VIEW_VENDORS.EXPORT";
+        }
+        /// <summary>Search Vendor</summary>
+        public static class SearchVendor
+        {
+            public const string View = "VENDORS.SEARCH_VENDOR.VIEW";
+        }
+        /// <summary>Vendor Account Detail</summary>
+        public static class VendorAccountDetail
+        {
+            public const string View = "VENDORS.VENDOR_ACCOUNT_DETAIL.VIEW";
+            public const string Edit = "VENDORS.VENDOR_ACCOUNT_DETAIL.EDIT";
+            public const string Delete = "VENDORS.VENDOR_ACCOUNT_DETAIL.DELETE";
+            public const string Print = "VENDORS.VENDOR_ACCOUNT_DETAIL.PRINT";
+            public const string Export = "VENDORS.VENDOR_ACCOUNT_DETAIL.EXPORT";
+        }
         /// <summary>Vendor Management</summary>
         public static class VendorManagement
         {
@@ -1332,6 +1350,58 @@ public static class PermissionCodes
     /// <summary>Human Resources</summary>
     public static class HumanResources
     {
+        /// <summary>New Staff</summary>
+        public static class NewStaff
+        {
+            public const string View = "HUMAN_RESOURCES.NEW_STAFF.VIEW";
+            public const string Add = "HUMAN_RESOURCES.NEW_STAFF.ADD";
+            public const string Edit = "HUMAN_RESOURCES.NEW_STAFF.EDIT";
+            public const string Delete = "HUMAN_RESOURCES.NEW_STAFF.DELETE";
+            public const string Print = "HUMAN_RESOURCES.NEW_STAFF.PRINT";
+            public const string Export = "HUMAN_RESOURCES.NEW_STAFF.EXPORT";
+        }
+        /// <summary>View Staff</summary>
+        public static class ViewStaff
+        {
+            public const string View = "HUMAN_RESOURCES.VIEW_STAFF.VIEW";
+            public const string Edit = "HUMAN_RESOURCES.VIEW_STAFF.EDIT";
+            public const string Delete = "HUMAN_RESOURCES.VIEW_STAFF.DELETE";
+            public const string Print = "HUMAN_RESOURCES.VIEW_STAFF.PRINT";
+            public const string Export = "HUMAN_RESOURCES.VIEW_STAFF.EXPORT";
+        }
+        /// <summary>Search Staff</summary>
+        public static class SearchStaff
+        {
+            public const string View = "HUMAN_RESOURCES.SEARCH_STAFF.VIEW";
+        }
+        /// <summary>Staff Account Detail</summary>
+        public static class StaffAccountDetail
+        {
+            public const string View = "HUMAN_RESOURCES.STAFF_ACCOUNT_DETAIL.VIEW";
+            public const string Edit = "HUMAN_RESOURCES.STAFF_ACCOUNT_DETAIL.EDIT";
+            public const string Delete = "HUMAN_RESOURCES.STAFF_ACCOUNT_DETAIL.DELETE";
+            public const string Print = "HUMAN_RESOURCES.STAFF_ACCOUNT_DETAIL.PRINT";
+            public const string Export = "HUMAN_RESOURCES.STAFF_ACCOUNT_DETAIL.EXPORT";
+        }
+        /// <summary>New Salary Sheet</summary>
+        public static class NewSalarySheet
+        {
+            public const string View = "HUMAN_RESOURCES.NEW_SALARY_SHEET.VIEW";
+            public const string Add = "HUMAN_RESOURCES.NEW_SALARY_SHEET.ADD";
+            public const string Edit = "HUMAN_RESOURCES.NEW_SALARY_SHEET.EDIT";
+            public const string Delete = "HUMAN_RESOURCES.NEW_SALARY_SHEET.DELETE";
+            public const string Print = "HUMAN_RESOURCES.NEW_SALARY_SHEET.PRINT";
+            public const string Export = "HUMAN_RESOURCES.NEW_SALARY_SHEET.EXPORT";
+        }
+        /// <summary>View Salary Sheet</summary>
+        public static class ViewSalarySheet
+        {
+            public const string View = "HUMAN_RESOURCES.VIEW_SALARY_SHEET.VIEW";
+            public const string Edit = "HUMAN_RESOURCES.VIEW_SALARY_SHEET.EDIT";
+            public const string Delete = "HUMAN_RESOURCES.VIEW_SALARY_SHEET.DELETE";
+            public const string Print = "HUMAN_RESOURCES.VIEW_SALARY_SHEET.PRINT";
+            public const string Export = "HUMAN_RESOURCES.VIEW_SALARY_SHEET.EXPORT";
+        }
         /// <summary>Staff Profiles</summary>
         public static class StaffProfiles
         {

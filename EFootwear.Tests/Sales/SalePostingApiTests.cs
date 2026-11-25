@@ -4,7 +4,7 @@ using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Catalogue;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using EFootwear.Tests.Parties;
+using EFootwear.Tests.Contacts;
 using static EFootwear.Tests.Accounting.VoucherTestHelpers;
 using static EFootwear.Tests.Sales.SalesTestHelpers;
 
@@ -49,17 +49,17 @@ public class SalePostingApiTests(ApiTestEnvironment environment)
     public async Task A_credit_sale_goes_to_the_account_of_the_customer_and_a_part_paid_sale_leaves_the_rest_outstanding()
     {
         var (scenario, item, cashAccountId) = await NewShopAsync();
-        var customerId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Haji Rafiq");
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Haji Rafiq");
 
         var credit = await PostSaleAsync(scenario.OwnerClient, SaleBody(
-            scenario.FirstStoreId, [Line(item.VariantId, 1, 1_000)], [], customerPartyId: customerId));
+            scenario.FirstStoreId, [Line(item.VariantId, 1, 1_000)], [], customerId: customerId));
         Assert.Equal(1_000, credit.GetProperty("outstandingAmount").GetInt64());
-        Assert.Equal(1_000, await PartyNetBalanceAsync(environment, scenario.CompanyId, customerId));
+        Assert.Equal(1_000, await CustomerNetBalanceAsync(environment, scenario.CompanyId, customerId));
 
         var partPaid = await PostSaleAsync(scenario.OwnerClient, SaleBody(
-            scenario.FirstStoreId, [Line(item.VariantId, 2, 1_000)], [CashPayment(cashAccountId, 500)], customerPartyId: customerId));
+            scenario.FirstStoreId, [Line(item.VariantId, 2, 1_000)], [CashPayment(cashAccountId, 500)], customerId: customerId));
         Assert.Equal(1_500, partPaid.GetProperty("outstandingAmount").GetInt64());
-        Assert.Equal(2_500, await PartyNetBalanceAsync(environment, scenario.CompanyId, customerId));
+        Assert.Equal(2_500, await CustomerNetBalanceAsync(environment, scenario.CompanyId, customerId));
         Assert.Equal(0, await JournalDifferenceAsync(environment, scenario.CompanyId));
     }
 

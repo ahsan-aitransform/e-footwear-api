@@ -8,7 +8,7 @@ namespace EFootwear.Tests.MasterData;
 /// <summary>
 /// A fresh company with its first store and a signed-in owner, plus helpers to sign in users who hold exactly the permission
 /// codes a test names. Every call makes a new company, so tests never see each other's data.
-/// Used by the integration tests of the master data, parties, accounting and cash modules.
+/// Used by the integration tests of the master data, customers, vendors, accounting and cash modules.
 /// </summary>
 public sealed class OwnerCompanyScenario
 {

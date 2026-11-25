@@ -2,11 +2,11 @@ using EFootwear.Domain.Accounting;
 using EFootwear.Domain.CashManagement;
 using EFootwear.Domain.Common;
 using EFootwear.Domain.MasterData;
-using EFootwear.Domain.Parties;
+using EFootwear.Domain.Contacts;
 
 namespace EFootwear.Tests.MasterData;
 
-/// <summary>Pure rules of the master data, party and cash modules: no database needed.</summary>
+/// <summary>Pure rules of the master data, contact and cash modules: no database needed.</summary>
 public class MasterDataRulesTests
 {
     [Theory]
@@ -77,13 +77,14 @@ public class MasterDataRulesTests
     }
 
     [Theory]
-    [InlineData("35202-1234567-1", true)]
-    [InlineData("3520212345671", false)]
-    [InlineData("35202-123456-1", false)]
-    [InlineData("abcde-1234567-1", false)]
-    public void A_cnic_has_the_shape_12345_1234567_1(string cnic, bool expected)
+    [InlineData("ali@example.test", true)]
+    [InlineData("ali.khan@shop.example.pk", true)]
+    [InlineData("ali@example", false)]
+    [InlineData("ali example@test.pk", false)]
+    [InlineData("no-at-sign.test", false)]
+    public void An_email_has_an_at_sign_a_domain_and_no_spaces(string email, bool expected)
     {
-        Assert.Equal(expected, PartyRules.IsValidCnic(cnic));
+        Assert.Equal(expected, ContactRules.IsValidEmail(email));
     }
 
     [Theory]
@@ -93,14 +94,38 @@ public class MasterDataRulesTests
     [InlineData("phone", false)]
     public void A_phone_number_is_digits_with_optional_separators(string phone, bool expected)
     {
-        Assert.Equal(expected, PartyRules.IsValidPhone(phone));
+        Assert.Equal(expected, ContactRules.IsValidPhone(phone));
     }
 
     [Fact]
-    public void A_party_needs_at_least_one_type()
+    public void A_customer_vendor_or_staff_member_needs_a_name_and_a_phone_number()
     {
-        Assert.Throws<DomainException>(() => PartyRules.EnsureAtLeastOneRole(false, false, false));
-        PartyRules.EnsureAtLeastOneRole(false, true, false);
+        Assert.Throws<DomainException>(() => ContactRules.EnsureNameIsGiven("Customer", ""));
+        Assert.Throws<DomainException>(() => ContactRules.EnsurePhoneIsGiven("Vendor", "  "));
+        Assert.Throws<DomainException>(() => ContactRules.EnsurePhoneIsGiven("Staff", null));
+        ContactRules.EnsureNameIsGiven("Customer", "Ali");
+        ContactRules.EnsurePhoneIsGiven("Customer", "0300 1234567");
+    }
+
+    [Fact]
+    public void A_birth_date_cannot_be_in_the_future()
+    {
+        var today = new DateOnly(2026, 11, 24);
+        ContactRules.EnsureBirthDateIsNotInTheFuture(null, today);
+        ContactRules.EnsureBirthDateIsNotInTheFuture(today, today);
+        Assert.Throws<DomainException>(() => ContactRules.EnsureBirthDateIsNotInTheFuture(today.AddDays(1), today));
+    }
+
+    [Fact]
+    public void A_contact_reference_names_exactly_one_customer_vendor_or_staff_member()
+    {
+        var id = Guid.NewGuid();
+        Assert.Null(ContactReference.FromOptionalIds(null, null, null, "a side"));
+        Assert.Equal(new ContactReference(ContactKindCodes.Customer, id), ContactReference.FromOptionalIds(id, null, null, "a side"));
+        Assert.Equal(new ContactReference(ContactKindCodes.Vendor, id), ContactReference.FromOptionalIds(null, id, null, "a side"));
+        Assert.Equal(new ContactReference(ContactKindCodes.Staff, id), ContactReference.FromOptionalIds(null, null, id, "a side"));
+        Assert.Throws<DomainException>(() => ContactReference.FromOptionalIds(id, id, null, "a side"));
+        Assert.Throws<DomainException>(() => ContactReference.FromOptionalIds(Guid.Empty, null, null, "a side"));
     }
 
     [Fact]

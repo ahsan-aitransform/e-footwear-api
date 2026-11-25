@@ -31,9 +31,9 @@ public sealed class VouchersController(VoucherService voucherService) : Controll
     [HttpGet(ApiRoutes.Vouchers.PaymentTargets)]
     [RequirePermission(PermissionCodes.Voucher.PaymentVoucher.Add)]
     public async Task<ActionResult<IReadOnlyList<VoucherTargetOptionResponse>>> SearchPaymentTargets(
-        [FromQuery] string kindCode, [FromQuery] string? searchText, [FromQuery] string? partyTypeCode, [FromQuery] string? groupCode,
+        [FromQuery] string kindCode, [FromQuery] string? searchText, [FromQuery] string? groupCode,
         CancellationToken cancellationToken) =>
-        Ok(await voucherService.SearchTargetsAsync(kindCode, searchText, partyTypeCode, groupCode, cancellationToken));
+        Ok(await voucherService.SearchTargetsAsync(kindCode, searchText, groupCode, cancellationToken));
 
     [HttpPost(ApiRoutes.Vouchers.Payment)]
     [RequirePermission(PermissionCodes.Voucher.PaymentVoucher.Add)]
@@ -51,9 +51,9 @@ public sealed class VouchersController(VoucherService voucherService) : Controll
     [HttpGet(ApiRoutes.Vouchers.ReceiptTargets)]
     [RequirePermission(PermissionCodes.Voucher.ReceiptVoucher.Add)]
     public async Task<ActionResult<IReadOnlyList<VoucherTargetOptionResponse>>> SearchReceiptTargets(
-        [FromQuery] string kindCode, [FromQuery] string? searchText, [FromQuery] string? partyTypeCode, [FromQuery] string? groupCode,
+        [FromQuery] string kindCode, [FromQuery] string? searchText, [FromQuery] string? groupCode,
         CancellationToken cancellationToken) =>
-        Ok(await voucherService.SearchTargetsAsync(kindCode, searchText, partyTypeCode, groupCode, cancellationToken));
+        Ok(await voucherService.SearchTargetsAsync(kindCode, searchText, groupCode, cancellationToken));
 
     [HttpPost(ApiRoutes.Vouchers.Receipt)]
     [RequirePermission(PermissionCodes.Voucher.ReceiptVoucher.Add)]
@@ -71,9 +71,9 @@ public sealed class VouchersController(VoucherService voucherService) : Controll
     [HttpGet(ApiRoutes.Vouchers.ExpenseTargets)]
     [RequirePermission(PermissionCodes.Voucher.ExpenseVoucher.Add)]
     public async Task<ActionResult<IReadOnlyList<VoucherTargetOptionResponse>>> SearchExpenseTargets(
-        [FromQuery] string kindCode, [FromQuery] string? searchText, [FromQuery] string? partyTypeCode, [FromQuery] string? groupCode,
+        [FromQuery] string kindCode, [FromQuery] string? searchText, [FromQuery] string? groupCode,
         CancellationToken cancellationToken) =>
-        Ok(await voucherService.SearchTargetsAsync(kindCode, searchText, partyTypeCode, groupCode, cancellationToken));
+        Ok(await voucherService.SearchTargetsAsync(kindCode, searchText, groupCode, cancellationToken));
 
     [HttpPost(ApiRoutes.Vouchers.Expense)]
     [RequirePermission(PermissionCodes.Voucher.ExpenseVoucher.Add)]
@@ -91,9 +91,9 @@ public sealed class VouchersController(VoucherService voucherService) : Controll
     [HttpGet(ApiRoutes.Vouchers.JournalTargets)]
     [RequirePermission(PermissionCodes.Voucher.JournalVoucher.Add)]
     public async Task<ActionResult<IReadOnlyList<VoucherTargetOptionResponse>>> SearchJournalTargets(
-        [FromQuery] string kindCode, [FromQuery] string? searchText, [FromQuery] string? partyTypeCode, [FromQuery] string? groupCode,
+        [FromQuery] string kindCode, [FromQuery] string? searchText, [FromQuery] string? groupCode,
         CancellationToken cancellationToken) =>
-        Ok(await voucherService.SearchTargetsAsync(kindCode, searchText, partyTypeCode, groupCode, cancellationToken));
+        Ok(await voucherService.SearchTargetsAsync(kindCode, searchText, groupCode, cancellationToken));
 
     [HttpPost(ApiRoutes.Vouchers.Journal)]
     [RequirePermission(PermissionCodes.Voucher.JournalVoucher.Add)]

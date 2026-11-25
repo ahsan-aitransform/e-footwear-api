@@ -3,7 +3,7 @@ using System.Text.Json;
 using E_Footwear_Api.Routing;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using EFootwear.Tests.Parties;
+using EFootwear.Tests.Contacts;
 
 namespace EFootwear.Tests.Payroll;
 
@@ -30,24 +30,24 @@ public static class PayrollTestHelpers
     public static string SalaryOutstandingReportUrl(Guid? storeId) =>
         $"{PayrollUrl}/{ApiRoutes.Payroll.SalaryOutstandingReport}" + (storeId is null ? "" : $"?storeId={storeId}");
 
-    /// <summary>Creates a staff member (a party flagged as staff) in a store and gives the person a base salary (whole rupees).</summary>
+    /// <summary>Creates a staff member in a store and gives the person a base salary (whole rupees).</summary>
     public static async Task<Guid> CreateStaffAsync(
         ApiTestEnvironment environment, OwnerCompanyScenario scenario, string name, Guid storeId, long baseSalary, string designation = "Salesman")
     {
-        var partyId = (await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, PartyTestHelpers.PartiesUrl,
-            PartyTestHelpers.PartyBody(name, isCustomer: false, isStaff: true, staffStoreId: storeId, designation: designation))).GetProperty("id").GetGuid();
-        // The party module stamps today as the join date, and the database rightly leaves staff who joined after the salary month off the sheet.
+        var staffId = (await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, ContactTestHelpers.StaffMembersUrl,
+            ContactTestHelpers.StaffMemberBody(name, storeId, designation: designation))).GetProperty("id").GetGuid();
+        // The staff module stamps today as the join date, and the database rightly leaves staff who joined after the salary month off the sheet.
         // The salary months of these tests are earlier than any day a test runs, so the person is made to have joined at the start of the year.
         await environment.Database.ExecuteAsOwnerAsync(
-            "update party.staff_profiles set joined_on = date '2026-01-01' where company_id = $1 and party_id = $2", scenario.CompanyId, partyId);
-        if (baseSalary > 0) await SetSalaryAsync(scenario.OwnerClient, partyId, baseSalary);
-        return partyId;
+            "update contacts.staff set joined_on = date '2026-01-01' where company_id = $1 and id = $2", scenario.CompanyId, staffId);
+        if (baseSalary > 0) await SetSalaryAsync(scenario.OwnerClient, staffId, baseSalary);
+        return staffId;
     }
 
-    public static async Task SetSalaryAsync(HttpClient client, Guid partyId, long baseSalary, string payFrequencyCode = "MONTHLY")
+    public static async Task SetSalaryAsync(HttpClient client, Guid staffId, long baseSalary, string payFrequencyCode = "MONTHLY")
     {
-        var detail = await OwnerCompanyScenario.ReadJsonAsync(await client.GetAsync($"{StaffUrl}/{partyId}"));
-        var response = await client.PutAsJsonAsync($"{StaffUrl}/{partyId}/salary-terms",
+        var detail = await OwnerCompanyScenario.ReadJsonAsync(await client.GetAsync($"{StaffUrl}/{staffId}"));
+        var response = await client.PutAsJsonAsync($"{StaffUrl}/{staffId}/salary-terms",
             new { baseSalary, payFrequencyCode, rowVersion = detail.GetProperty("rowVersion").GetInt64() });
         await TestScenarioBuilder.EnsureSuccessAsync(response);
     }
@@ -62,8 +62,8 @@ public static class PayrollTestHelpers
         return await OwnerCompanyScenario.ReadJsonAsync(response);
     }
 
-    public static Task<JsonElement> AddAdjustmentAsync(HttpClient client, Guid employeePartyId, string adjustmentTypeCode, long amount, string? reason = null, string month = SalaryMonth) =>
-        OwnerCompanyScenario.PostJsonAsync(client, AdjustmentsUrl, new { employeePartyId, month, adjustmentTypeCode, amount, reason });
+    public static Task<JsonElement> AddAdjustmentAsync(HttpClient client, Guid staffId, string adjustmentTypeCode, long amount, string? reason = null, string month = SalaryMonth) =>
+        OwnerCompanyScenario.PostJsonAsync(client, AdjustmentsUrl, new { staffId, month, adjustmentTypeCode, amount, reason });
 
     public static object PaymentBody(long amount, string methodCode = "CASH", Guid? clientTransactionId = null, string? reference = null) =>
         new { amount, methodCode, paidOn = PaymentDate, reference, clientTransactionId };
@@ -72,10 +72,10 @@ public static class PayrollTestHelpers
         OwnerCompanyScenario.PostJsonAsync(client, LinePaymentsUrl(lineId), PaymentBody(amount, methodCode, clientTransactionId));
 
     /// <summary>The line of a sheet that belongs to the employee.</summary>
-    public static JsonElement LineOf(JsonElement sheet, Guid employeePartyId) =>
-        sheet.GetProperty("lines").EnumerateArray().Single(line => line.GetProperty("employeePartyId").GetGuid() == employeePartyId);
+    public static JsonElement LineOf(JsonElement sheet, Guid staffId) =>
+        sheet.GetProperty("lines").EnumerateArray().Single(line => line.GetProperty("staffId").GetGuid() == staffId);
 
-    public static Guid LineIdOf(JsonElement sheet, Guid employeePartyId) => LineOf(sheet, employeePartyId).GetProperty("lineId").GetGuid();
+    public static Guid LineIdOf(JsonElement sheet, Guid staffId) => LineOf(sheet, staffId).GetProperty("lineId").GetGuid();
 
     /// <summary>Total debit and total credit of every journal entry the payroll posted (source type), straight from the database.</summary>
     public static async Task<(long Debit, long Credit)> JournalTotalsOfSourceAsync(ApiTestEnvironment environment, Guid companyId, string sourceType)

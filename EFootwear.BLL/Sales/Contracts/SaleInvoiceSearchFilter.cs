@@ -8,7 +8,7 @@ public sealed record SaleInvoiceSearchFilter(
     long? InvoiceNumber = null,
     string? DocumentTypeCode = null,
     string? StatusCode = null,
-    Guid? CustomerPartyId = null,
-    Guid? SalesmanPartyId = null,
+    Guid? CustomerId = null,
+    Guid? SalesmanStaffId = null,
     long? MinimumNetAmount = null,
     long? MaximumNetAmount = null);

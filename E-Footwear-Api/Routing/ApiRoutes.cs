@@ -168,7 +168,7 @@ public static class ApiRoutes
         public const string Overview = "overview";
     }
 
-    /// <summary>Master data (module masterdata-parties): the simple master lists, categories and the sizes of a size group.</summary>
+    /// <summary>Master data (module master-data): the simple master lists, categories and the sizes of a size group.</summary>
     public static class MasterData
     {
         public const string Departments = VersionPrefix + "/departments";
@@ -208,19 +208,47 @@ public static class ApiRoutes
         public const string Root = VersionPrefix + "/opening-balances";
     }
 
-    /// <summary>Parties (docx 3.1 to 3.3), staff transfers and the party account detail (docx 3.4).</summary>
-    public static class Parties
+    /// <summary>Customers: New Customer, View Customers, Search Customer and the customer account detail.</summary>
+    public static class Customers
     {
-        public const string Root = VersionPrefix + "/parties";
+        public const string Root = VersionPrefix + "/customers";
         public const string Search = "search";
         public const string Lookup = "lookup";
-        public const string PartyById = "{partyId:guid}";
-        public const string StaffTransfers = "{partyId:guid}/staff-transfers";
+        public const string CustomerById = "{customerId:guid}";
     }
 
-    public static class PartyLedger
+    public static class CustomerLedger
     {
-        public const string Root = VersionPrefix + "/party-ledger";
+        public const string Root = VersionPrefix + "/customer-ledger";
+    }
+
+    /// <summary>Vendors: New Vendor, View Vendors, Search Vendor and the vendor account detail.</summary>
+    public static class Vendors
+    {
+        public const string Root = VersionPrefix + "/vendors";
+        public const string Search = "search";
+        public const string Lookup = "lookup";
+        public const string VendorById = "{vendorId:guid}";
+    }
+
+    public static class VendorLedger
+    {
+        public const string Root = VersionPrefix + "/vendor-ledger";
+    }
+
+    /// <summary>Staff: New Staff, View Staff, Search Staff, store transfers and the staff account detail. The salary side of staff lives under <see cref="Staff"/>.</summary>
+    public static class StaffMembers
+    {
+        public const string Root = VersionPrefix + "/staff-members";
+        public const string Search = "search";
+        public const string Lookup = "lookup";
+        public const string StaffById = "{staffId:guid}";
+        public const string Transfers = "{staffId:guid}/transfers";
+    }
+
+    public static class StaffLedger
+    {
+        public const string Root = VersionPrefix + "/staff-ledger";
     }
 
     /// <summary>Customer promises (docx 3.5).</summary>
@@ -228,7 +256,7 @@ public static class ApiRoutes
     {
         public const string Root = VersionPrefix + "/promises";
         public const string PromiseById = "{promiseId:guid}";
-        public const string CustomerBalance = "customers/{customerPartyId:guid}/balance";
+        public const string CustomerBalance = "customers/{customerId:guid}/balance";
     }
 
     /// <summary>End-of-day cash counts: the Cash Calculator and View Cash Detail (docx 3.6, 3.7).</summary>
@@ -356,13 +384,13 @@ public static class ApiRoutes
         public const string ById = "{priceBandId:guid}";
     }
 
-    /// <summary>Staff profiles, salary terms and the company-wide list of staff transfers (docx 3.1 staff, Part 16.1). Staff transfers themselves are posted through <see cref="Parties"/>.</summary>
+    /// <summary>Staff profiles, salary terms and the company-wide list of staff transfers (docx 3.1 staff, Part 16.1). Staff transfers themselves are posted through <see cref="StaffMembers"/>.</summary>
     public static class Staff
     {
         public const string Root = VersionPrefix + "/staff";
         public const string Transfers = "transfers";
-        public const string StaffById = "{partyId:guid}";
-        public const string SalaryTerms = "{partyId:guid}/salary-terms";
+        public const string StaffById = "{staffId:guid}";
+        public const string SalaryTerms = "{staffId:guid}/salary-terms";
     }
 
     /// <summary>The monthly salary sheet, adjustments and salary payments (docx 3.8, 3.9; Part 16.3) and the Staff Salary / Salary Outstanding reports.</summary>

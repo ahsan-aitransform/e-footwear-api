@@ -5,7 +5,7 @@ using EFootwear.Domain.Security;
 using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using EFootwear.Tests.Parties;
+using EFootwear.Tests.Contacts;
 using static EFootwear.Tests.Accounting.VoucherTestHelpers;
 
 namespace EFootwear.Tests.Accounting;
@@ -21,9 +21,9 @@ public class AccountingPeriodAndCashBalanceApiTests(ApiTestEnvironment environme
     public async Task Periods_are_listed_newest_first_and_can_be_closed_and_reopened_with_who_and_when()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor For Periods", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor For Periods");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 1_000, voucherDate: "2026-09-12"));
+        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 1_000, voucherDate: "2026-09-12"));
 
         var periods = (await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(PeriodsUrl))).EnumerateArray().ToList();
         Assert.True(periods.Count >= 2);
@@ -58,15 +58,15 @@ public class AccountingPeriodAndCashBalanceApiTests(ApiTestEnvironment environme
     public async Task A_voucher_of_a_closed_month_can_still_be_voided_because_the_reversal_is_dated_today()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor Closed Month Void", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor Closed Month Void");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        var voucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 2_000, voucherDate: "2026-04-10"));
+        var voucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 2_000, voucherDate: "2026-04-10"));
         await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, $"{PeriodsUrl}/{ApiRoutes.AccountingPeriods.Close}", new { periodStart = "2026-04-01" });
 
         var voided = await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, $"{VouchersUrl}/{voucher.GetProperty("id").GetGuid()}/void", new { reason = "Corrected after close" });
 
         Assert.Equal("VOID", voided.GetProperty("statusCode").GetString());
-        Assert.Equal(0, await PartyNetBalanceAsync(environment, scenario.CompanyId, vendorId));
+        Assert.Equal(0, await VendorNetBalanceAsync(environment, scenario.CompanyId, vendorId));
         // the closed month itself still holds only the original entry
         Assert.Equal(1L, await environment.Database.QueryScalarAsOwnerAsync<long>(
             "select count(*) from acct.journal_entries where company_id = $1 and entry_date = date '2026-04-10'", scenario.CompanyId));
@@ -107,12 +107,12 @@ public class AccountingPeriodAndCashBalanceApiTests(ApiTestEnvironment environme
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
         var secondStoreId = await scenario.CreateStoreAsync("S2");
-        var customerId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Cash And Bank Customer");
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Cash And Bank Customer");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
         var bankAccountId = await AccountIdAsync(environment, scenario.CompanyId, "1020");
 
-        await PostVoucherAsync(scenario.OwnerClient, ReceiptUrl, VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), PartyTarget(customerId), 25_000));
-        await PostVoucherAsync(scenario.OwnerClient, ReceiptUrl, VoucherBody(scenario.FirstStoreId, AccountTarget(bankAccountId), PartyTarget(customerId), 5_000, paymentMode: "BANK"));
+        await PostVoucherAsync(scenario.OwnerClient, ReceiptUrl, VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), CustomerTarget(customerId), 25_000));
+        await PostVoucherAsync(scenario.OwnerClient, ReceiptUrl, VoucherBody(scenario.FirstStoreId, AccountTarget(bankAccountId), CustomerTarget(customerId), 5_000, paymentMode: "BANK"));
         await PostVoucherAsync(scenario.OwnerClient, ExpenseUrl, VoucherBody(scenario.FirstStoreId, AccountTarget(await AccountIdAsync(environment, scenario.CompanyId, "EXP-RENT")), AccountTarget(cashAccountId), 4_000));
 
         var balances = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{CashAndBankUrl}?asOfDate=2026-11-30"));

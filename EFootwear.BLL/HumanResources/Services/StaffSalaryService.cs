@@ -18,20 +18,20 @@ public sealed class StaffSalaryService(
     IUnitOfWork unitOfWork,
     ILogger<StaffSalaryService> logger)
 {
-    public async Task UpdateSalaryTermsAsync(Guid partyId, UpdateStaffSalaryTermsRequest request, CancellationToken cancellationToken)
+    public async Task UpdateSalaryTermsAsync(Guid staffId, UpdateStaffSalaryTermsRequest request, CancellationToken cancellationToken)
     {
         StaffRules.EnsureSalaryTermsAreValid(request.BaseSalary, request.PayFrequencyCode);
 
-        var detail = await staffRepository.FindStaffDetailAsync(partyId, cancellationToken)
+        var detail = await staffRepository.FindStaffDetailAsync(staffId, cancellationToken)
             ?? throw new DomainException(ErrorKind.NotFound, "The staff member was not found.");
         if (!currentUser.CanAccessStore(detail.Profile.CurrentStoreId))
             throw new DomainException(ErrorKind.Forbidden, "You do not have access to the store of this staff member.");
 
-        var wasSaved = await staffRepository.UpdateSalaryTermsAsync(partyId, request.BaseSalary, request.PayFrequencyCode, request.RowVersion, cancellationToken);
+        var wasSaved = await staffRepository.UpdateSalaryTermsAsync(staffId, request.BaseSalary, request.PayFrequencyCode, request.RowVersion, cancellationToken);
         if (!wasSaved)
             throw new DomainException(ErrorKind.Conflict, "The staff member was changed by someone else. Reload and try again.", ErrorCodes.ConcurrentUpdate);
 
         await unitOfWork.CommitAsync(cancellationToken);
-        logger.LogInformation("Salary terms of staff {PartyId} changed by user {UserId}", partyId, currentUser.UserId);
+        logger.LogInformation("Salary terms of staff {StaffId} changed by user {UserId}", staffId, currentUser.UserId);
     }
 }

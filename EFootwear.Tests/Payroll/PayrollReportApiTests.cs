@@ -40,7 +40,7 @@ public class PayrollReportApiTests(ApiTestEnvironment environment)
         Assert.Equal(firstSheet.GetProperty("totalNetPay").GetInt64(), firstStoreOnly.GetProperty("totalNetPay").GetInt64());
 
         var oneEmployee = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(
-            StaffSalaryReportUrl(scenario.FirstStoreId) + $"&employeePartyId={firstStaffId}"));
+            StaffSalaryReportUrl(scenario.FirstStoreId) + $"&staffId={firstStaffId}"));
         var row = Assert.Single(oneEmployee.GetProperty("rows").EnumerateArray());
         Assert.Equal(24_000, row.GetProperty("netPay").GetInt64());
         Assert.Equal(14_000, row.GetProperty("outstandingAmount").GetInt64());

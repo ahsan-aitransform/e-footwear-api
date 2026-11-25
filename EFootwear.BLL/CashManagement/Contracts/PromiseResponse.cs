@@ -8,7 +8,7 @@ public sealed record PromiseResponse(
     Guid Id,
     long? PromiseNumber,
     Guid StoreId,
-    Guid CustomerPartyId,
+    Guid CustomerId,
     string CustomerName,
     DateOnly PromiseDate,
     DateOnly DueDate,

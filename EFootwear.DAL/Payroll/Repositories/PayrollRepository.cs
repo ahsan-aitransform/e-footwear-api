@@ -26,12 +26,12 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
     private const string PaymentFromAndWhere = """
         from hr.salary_payments sp
         join hr.payroll_lines l on l.company_id = sp.company_id and l.id = sp.payroll_line_id
-        join party.parties p on p.company_id = sp.company_id and p.id = sp.employee_party_id
+        join contacts.staff p on p.company_id = sp.company_id and p.id = sp.staff_id
         join core.stores s on s.company_id = sp.company_id and s.id = sp.store_id
         left join sec.users paid_by_user on paid_by_user.company_id = sp.company_id and paid_by_user.id = sp.paid_by
         where sp.company_id = {0}
           and (cast({1} as uuid) is null or sp.store_id = cast({1} as uuid))
-          and (cast({2} as uuid) is null or sp.employee_party_id = cast({2} as uuid))
+          and (cast({2} as uuid) is null or sp.staff_id = cast({2} as uuid))
           and (cast({3} as date) is null or sp.paid_on >= cast({3} as date))
           and (cast({4} as date) is null or sp.paid_on <= cast({4} as date))
           and (cast({5} as text) is null or p.name ilike cast({5} as text) escape '\' or sp.reference ilike cast({5} as text) escape '\')
@@ -39,7 +39,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
         """;
 
     private const string PaymentColumns = """
-        sp.id as "Id", sp.payroll_line_id as "PayrollLineId", sp.employee_party_id as "EmployeePartyId", p.name as "EmployeeName",
+        sp.id as "Id", sp.payroll_line_id as "PayrollLineId", sp.staff_id as "StaffId", p.name as "EmployeeName",
         sp.store_id as "StoreId", s.name as "StoreName", l.period_month as "PeriodMonth", sp.paid_on as "PaidOn", sp.amount as "Amount",
         sp.method as "MethodCode", sp.reference as "Reference", sp.paid_by as "PaidByUserId", paid_by_user.full_name as "PaidByName",
         sp.created_at as "CreatedAt"
@@ -98,26 +98,26 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
         var rows = await databaseContext.Database.SqlQuery<AdjustmentRow>($"""
-            select a.id as "Id", a.employee_party_id as "EmployeePartyId", p.name as "EmployeeName", a.period_month as "PeriodMonth",
+            select a.id as "Id", a.staff_id as "StaffId", p.name as "EmployeeName", a.period_month as "PeriodMonth",
                    a.adjustment_type as "AdjustmentTypeCode", a.amount as "Amount", a.reason as "Reason",
                    (a.payroll_line_id is not null) as "IsOnSalarySheet", a.created_at as "CreatedAt"
               from hr.payroll_adjustments a
-              join party.parties p on p.company_id = a.company_id and p.id = a.employee_party_id
-              join party.staff_profiles sp on sp.company_id = a.company_id and sp.party_id = a.employee_party_id
+              join contacts.staff p on p.company_id = a.company_id and p.id = a.staff_id
+              join contacts.staff sp on sp.company_id = a.company_id and sp.id = a.staff_id
              where a.company_id = {companyId} and a.period_month = {periodMonth} and sp.current_store_id = {storeId}
              order by p.name, a.created_at, a.id
             """).ToListAsync(cancellationToken);
-        return rows.Select(row => new PayrollAdjustmentResponse(row.Id, row.EmployeePartyId, row.EmployeeName, row.PeriodMonth, row.AdjustmentTypeCode,
+        return rows.Select(row => new PayrollAdjustmentResponse(row.Id, row.StaffId, row.EmployeeName, row.PeriodMonth, row.AdjustmentTypeCode,
                                                                 row.Amount, row.Reason, row.IsOnSalarySheet, row.CreatedAt)).ToList();
     }
 
-    public async Task<bool> HasApprovedLineAsync(Guid employeePartyId, DateOnly periodMonth, CancellationToken cancellationToken)
+    public async Task<bool> HasApprovedLineAsync(Guid staffId, DateOnly periodMonth, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
         return await databaseContext.Database.SqlQuery<bool>($"""
             select exists (select 1 from hr.payroll_lines l
-                            where l.company_id = {companyId} and l.employee_party_id = {employeePartyId}
+                            where l.company_id = {companyId} and l.staff_id = {staffId}
                               and l.period_month = {periodMonth} and l.status in ('APPROVED', 'PAID')) as "Value"
             """).SingleAsync(cancellationToken);
     }
@@ -128,8 +128,8 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
         var companyId = currentUser.CompanyId;
         // INSERT ... RETURNING cannot be wrapped in a sub-select, so the rows are read with ToListAsync (no LINQ operator is added to the SQL).
         var insertedIds = await databaseContext.Database.SqlQuery<Guid>($"""
-            insert into hr.payroll_adjustments (company_id, employee_party_id, period_month, adjustment_type, amount, reason, created_by)
-            values ({companyId}, {request.EmployeePartyId}, {periodMonth}, {request.AdjustmentTypeCode}, {request.Amount}, {request.Reason}, {userId})
+            insert into hr.payroll_adjustments (company_id, staff_id, period_month, adjustment_type, amount, reason, created_by)
+            values ({companyId}, {request.StaffId}, {periodMonth}, {request.AdjustmentTypeCode}, {request.Amount}, {request.Reason}, {userId})
             returning id as "Value"
             """).ToListAsync(cancellationToken);
         return insertedIds.Single();
@@ -140,14 +140,14 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
         var rows = await databaseContext.Database.SqlQuery<LineSummaryRow>($"""
-            select l.id as "LineId", l.store_id as "StoreId", l.employee_party_id as "EmployeePartyId", l.period_month as "PeriodMonth",
+            select l.id as "LineId", l.store_id as "StoreId", l.staff_id as "StaffId", l.period_month as "PeriodMonth",
                    l.status as "StatusCode", l.outstanding_amount as "OutstandingAmount"
               from hr.payroll_lines l
              where l.company_id = {companyId} and l.id = {lineId}
             """).ToListAsync(cancellationToken);
         return rows.Count == 0
             ? null
-            : new PayrollLineSummary(rows[0].LineId, rows[0].StoreId, rows[0].EmployeePartyId, rows[0].PeriodMonth, rows[0].StatusCode, rows[0].OutstandingAmount);
+            : new PayrollLineSummary(rows[0].LineId, rows[0].StoreId, rows[0].StaffId, rows[0].PeriodMonth, rows[0].StatusCode, rows[0].OutstandingAmount);
     }
 
     public async Task<Guid> PaySalaryAsync(SalaryPaymentWriteRecord payment, CancellationToken cancellationToken)
@@ -168,7 +168,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
             select {{PaymentColumns}}
             from hr.salary_payments sp
             join hr.payroll_lines l on l.company_id = sp.company_id and l.id = sp.payroll_line_id
-            join party.parties p on p.company_id = sp.company_id and p.id = sp.employee_party_id
+            join contacts.staff p on p.company_id = sp.company_id and p.id = sp.staff_id
             join core.stores s on s.company_id = sp.company_id and s.id = sp.store_id
             left join sec.users paid_by_user on paid_by_user.company_id = sp.company_id and paid_by_user.id = sp.paid_by
             where sp.company_id = {0} and sp.id = {1}
@@ -185,7 +185,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
             from hr.salary_payment_client_ids c
             join hr.salary_payments sp on sp.company_id = c.company_id and sp.id = c.salary_payment_id
             join hr.payroll_lines l on l.company_id = sp.company_id and l.id = sp.payroll_line_id
-            join party.parties p on p.company_id = sp.company_id and p.id = sp.employee_party_id
+            join contacts.staff p on p.company_id = sp.company_id and p.id = sp.staff_id
             join core.stores s on s.company_id = sp.company_id and s.id = sp.store_id
             left join sec.users paid_by_user on paid_by_user.company_id = sp.company_id and paid_by_user.id = sp.paid_by
             where c.company_id = {0} and c.client_transaction_id = {1}
@@ -201,7 +201,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
             select {{PaymentColumns}}
             from hr.salary_payments sp
             join hr.payroll_lines l on l.company_id = sp.company_id and l.id = sp.payroll_line_id
-            join party.parties p on p.company_id = sp.company_id and p.id = sp.employee_party_id
+            join contacts.staff p on p.company_id = sp.company_id and p.id = sp.staff_id
             join core.stores s on s.company_id = sp.company_id and s.id = sp.store_id
             left join sec.users paid_by_user on paid_by_user.company_id = sp.company_id and paid_by_user.id = sp.paid_by
             where sp.company_id = {0} and sp.payroll_line_id = {1}
@@ -215,7 +215,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         object?[] filterParameters =
         [
-            currentUser.CompanyId, filter.StoreId, filter.EmployeePartyId, filter.FromDate, filter.ToDate,
+            currentUser.CompanyId, filter.StoreId, filter.StaffId, filter.FromDate, filter.ToDate,
             pageRequest.SearchText is null ? null : EFootwear.DAL.Common.LikePattern.Contains(pageRequest.SearchText),
             currentUser.HasAccessToAllStores, currentUser.AssignedStoreIds.ToArray(),
         ];
@@ -243,21 +243,21 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
         var lineRows = await databaseContext.Database.SqlQuery<SheetLineRow>($"""
-            select l.id as "LineId", l.employee_party_id as "EmployeePartyId", p.code as "EmployeeCode", p.name as "EmployeeName",
+            select l.id as "LineId", l.staff_id as "StaffId", p.code as "EmployeeCode", p.name as "EmployeeName",
                    sp.designation as "Designation", l.store_id as "StoreId", s.name as "StoreName", l.base_salary as "BaseSalary",
                    l.total_sales as "TotalSales", l.commission_amount as "CommissionAmount", l.incentive_amount as "IncentiveAmount",
                    l.deduction_amount as "DeductionAmount", l.net_pay as "NetPay", l.paid_amount as "PaidAmount",
                    l.outstanding_amount as "OutstandingAmount", l.status as "StatusCode"
               from hr.payroll_lines l
-              join party.parties p on p.company_id = l.company_id and p.id = l.employee_party_id
+              join contacts.staff p on p.company_id = l.company_id and p.id = l.staff_id
               join core.stores s on s.company_id = l.company_id and s.id = l.store_id
-              left join party.staff_profiles sp on sp.company_id = l.company_id and sp.party_id = l.employee_party_id
+              left join contacts.staff sp on sp.company_id = l.company_id and sp.id = l.staff_id
              where l.company_id = {companyId} and l.payroll_run_id = {header.RunId} and l.status <> 'CANCELLED'
              order by p.name, l.id
             """).ToListAsync(cancellationToken);
 
         var lines = lineRows.Select(row => new PayrollSheetLineResponse(
-            row.LineId, row.EmployeePartyId, row.EmployeeCode, row.EmployeeName, row.Designation, row.StoreId, row.StoreName, row.BaseSalary,
+            row.LineId, row.StaffId, row.EmployeeCode, row.EmployeeName, row.Designation, row.StoreId, row.StoreName, row.BaseSalary,
             row.TotalSales, row.CommissionAmount, row.IncentiveAmount, row.DeductionAmount, row.NetPay, row.PaidAmount, row.OutstandingAmount,
             row.StatusCode)).ToList();
 
@@ -270,7 +270,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
     }
 
     private static SalaryPaymentResponse ToPaymentResponse(PaymentRow row) =>
-        new(row.Id, row.PayrollLineId, row.EmployeePartyId, row.EmployeeName, row.StoreId, row.StoreName, row.PeriodMonth, row.PaidOn, row.Amount,
+        new(row.Id, row.PayrollLineId, row.StaffId, row.EmployeeName, row.StoreId, row.StoreName, row.PeriodMonth, row.PaidOn, row.Amount,
             row.MethodCode, row.Reference, row.PaidByUserId, row.PaidByName, row.CreatedAt);
 
     private sealed class SheetHeaderRow
@@ -289,7 +289,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
     private sealed class SheetLineRow
     {
         public Guid LineId { get; set; }
-        public Guid EmployeePartyId { get; set; }
+        public Guid StaffId { get; set; }
         public string EmployeeCode { get; set; } = "";
         public string EmployeeName { get; set; } = "";
         public string? Designation { get; set; }
@@ -309,7 +309,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
     private sealed class AdjustmentRow
     {
         public Guid Id { get; set; }
-        public Guid EmployeePartyId { get; set; }
+        public Guid StaffId { get; set; }
         public string EmployeeName { get; set; } = "";
         public DateOnly PeriodMonth { get; set; }
         public string AdjustmentTypeCode { get; set; } = "";
@@ -323,7 +323,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
     {
         public Guid LineId { get; set; }
         public Guid StoreId { get; set; }
-        public Guid EmployeePartyId { get; set; }
+        public Guid StaffId { get; set; }
         public DateOnly PeriodMonth { get; set; }
         public string StatusCode { get; set; } = "";
         public long OutstandingAmount { get; set; }
@@ -333,7 +333,7 @@ public sealed class PayrollRepository(DatabaseSession databaseSession, ICurrentU
     {
         public Guid Id { get; set; }
         public Guid PayrollLineId { get; set; }
-        public Guid EmployeePartyId { get; set; }
+        public Guid StaffId { get; set; }
         public string EmployeeName { get; set; } = "";
         public Guid StoreId { get; set; }
         public string StoreName { get; set; } = "";

@@ -10,4 +10,6 @@ public sealed record VoucherSearchFilter(
     DateOnly? FromDate,
     DateOnly? ToDate,
     string? StatusCode,
-    Guid? PartyId);
+    Guid? CustomerId = null,
+    Guid? VendorId = null,
+    Guid? StaffId = null);

@@ -8,6 +8,6 @@ public sealed record CreateSaleReturnRequest(
     Guid StoreId,
     DateOnly ReturnDate,
     Guid ClientTransactionId,
-    Guid? CustomerPartyId,
+    Guid? CustomerId,
     string? Description,
     IReadOnlyList<ReturnedLineRequest> Lines);

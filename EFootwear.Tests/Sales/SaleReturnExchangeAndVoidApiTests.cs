@@ -4,7 +4,7 @@ using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Catalogue;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using EFootwear.Tests.Parties;
+using EFootwear.Tests.Contacts;
 using static EFootwear.Tests.Accounting.VoucherTestHelpers;
 using static EFootwear.Tests.Sales.SalesTestHelpers;
 
@@ -91,14 +91,14 @@ public class SaleReturnExchangeAndVoidApiTests(ApiTestEnvironment environment)
     public async Task A_return_of_a_credit_sale_to_a_customer_lowers_the_balance_of_the_customer()
     {
         var (scenario, item, _) = await NewShopAsync();
-        var customerId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Chaudhry Bilal");
-        var sale = await PostSaleAsync(scenario.OwnerClient, SaleBody(scenario.FirstStoreId, [Line(item.VariantId, 2, 1_000)], [], customerPartyId: customerId));
-        Assert.Equal(2_000, await PartyNetBalanceAsync(environment, scenario.CompanyId, customerId));
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Chaudhry Bilal");
+        var sale = await PostSaleAsync(scenario.OwnerClient, SaleBody(scenario.FirstStoreId, [Line(item.VariantId, 2, 1_000)], [], customerId: customerId));
+        Assert.Equal(2_000, await CustomerNetBalanceAsync(environment, scenario.CompanyId, customerId));
 
         await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, SaleReturnsUrl,
-            ReturnBody(scenario.FirstStoreId, [ReturnedLine(FirstLineId(sale), 1)], customerPartyId: customerId));
+            ReturnBody(scenario.FirstStoreId, [ReturnedLine(FirstLineId(sale), 1)], customerId: customerId));
 
-        Assert.Equal(1_000, await PartyNetBalanceAsync(environment, scenario.CompanyId, customerId));
+        Assert.Equal(1_000, await CustomerNetBalanceAsync(environment, scenario.CompanyId, customerId));
     }
 
     [Fact]
@@ -121,13 +121,13 @@ public class SaleReturnExchangeAndVoidApiTests(ApiTestEnvironment environment)
         var (scenario, oldItem, lookups) = await NewShopAsync(1_000);
         var newItem = await CreateStockedItemAsync(environment, scenario, lookups, "Gents Loafer", 1_500, 5);
         var cashAccountId = await CashAccountIdAsync(environment, scenario.CompanyId);
-        var customerId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Imran Traders");
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Imran Traders");
         var oldLineId = FirstLineId(await PostSaleAsync(scenario.OwnerClient, SaleBody(
-            scenario.FirstStoreId, [Line(oldItem.VariantId, 1, 1_000)], [CashPayment(cashAccountId, 1_000)], customerPartyId: customerId)));
+            scenario.FirstStoreId, [Line(oldItem.VariantId, 1, 1_000)], [CashPayment(cashAccountId, 1_000)], customerId: customerId)));
 
         var exchange = await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, ExchangesUrl, ExchangeBody(
             scenario.FirstStoreId, [ReturnedLine(oldLineId, 1, "Wrong size")], [Line(newItem.VariantId, 1, 1_500)], [CashPayment(cashAccountId, 500)],
-            customerPartyId: customerId));
+            customerId: customerId));
 
         var returnInvoice = exchange.GetProperty("returnInvoice");
         var saleInvoice = exchange.GetProperty("saleInvoice");
@@ -138,7 +138,7 @@ public class SaleReturnExchangeAndVoidApiTests(ApiTestEnvironment environment)
         Assert.Equal(10, await StockOnHandAsync(environment, scenario.CompanyId, scenario.FirstStoreId, oldItem.VariantId));
         Assert.Equal(4, await StockOnHandAsync(environment, scenario.CompanyId, scenario.FirstStoreId, newItem.VariantId));
         Assert.Equal(0, await JournalDifferenceAsync(environment, scenario.CompanyId));
-        Assert.Equal(0, await PartyNetBalanceAsync(environment, scenario.CompanyId, customerId));
+        Assert.Equal(0, await CustomerNetBalanceAsync(environment, scenario.CompanyId, customerId));
     }
 
     [Fact]
@@ -149,10 +149,10 @@ public class SaleReturnExchangeAndVoidApiTests(ApiTestEnvironment environment)
         var cashAccountId = await CashAccountIdAsync(environment, scenario.CompanyId);
         var oldLineId = FirstLineId(await PostSimpleCashSaleAsync(environment, scenario, oldItem, 1));
         var invoicesBefore = await InvoiceCountAsync(environment, scenario.CompanyId);
-        var customerId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Nadeem Stores");
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Nadeem Stores");
 
         var response = await scenario.OwnerClient.PostAsJsonAsync(ExchangesUrl, ExchangeBody(
-            scenario.FirstStoreId, [ReturnedLine(oldLineId, 1)], [Line(newItem.VariantId, 1, 2_000)], [CashPayment(cashAccountId, 1_000)], customerPartyId: customerId));
+            scenario.FirstStoreId, [ReturnedLine(oldLineId, 1)], [Line(newItem.VariantId, 1, 2_000)], [CashPayment(cashAccountId, 1_000)], customerId: customerId));
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Equal(invoicesBefore, await InvoiceCountAsync(environment, scenario.CompanyId));

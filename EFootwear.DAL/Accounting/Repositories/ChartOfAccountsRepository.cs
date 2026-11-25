@@ -204,7 +204,7 @@ public sealed class ChartOfAccountsRepository(DatabaseSession databaseSession, I
 
     private static AccountResponse ToResponse(AccountRow row) => new(
         row.Account.Id, row.Account.Code, row.Account.GroupCode, row.GroupName, row.Account.MainTypeCode, row.Account.Name,
-        row.Account.StoreId, row.Account.SystemRole, row.Account.IsPostable, row.Account.IsPartyControl, row.Account.IsActive, row.Account.RowVersion);
+        row.Account.StoreId, row.Account.SystemRole, row.Account.IsPostable, row.Account.IsSubledgerControl, row.Account.IsActive, row.Account.RowVersion);
 
     private sealed class AccountRow
     {

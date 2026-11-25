@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EFootwear.DAL.Sales.Repositories;
 
 /// <summary>
-/// Reads of the Sales module. Plain SQL over the sales tables, the catalogue and the parties; row-level security already limits every answer to the company
+/// Reads of the Sales module. Plain SQL over the sales tables, the catalogue, the customers and the staff; row-level security already limits every answer to the company
 /// and the stores of the caller. A line of a sale is always read together with the sale date of its invoice so the partitioned line table is pruned.
 /// Text searches use <c>position(lower(text) in lower(column))</c> so a percent sign or an underscore typed by the user is never a wildcard.
 /// </summary>
@@ -27,8 +27,8 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
         var header = await databaseContext.Database.SqlQuery<InvoiceHeaderRow>($"""
             select i.id as "Id", i.store_id as "StoreId", s.name as "StoreName", i.doc_type as "DocumentTypeCode", i.invoice_no as "InvoiceNumber",
                    i.daily_bill_no as "DailyBillNumber", i.sale_date as "SaleDate", i.occurred_at as "OccurredAt",
-                   i.customer_party_id as "CustomerPartyId", customer.name as "CustomerName", i.walkin_name as "WalkInCustomerName",
-                   i.walkin_mobile as "WalkInCustomerMobile", i.salesman_party_id as "SalesmanPartyId", salesman.name as "SalesmanName",
+                   i.customer_id as "CustomerId", customer.name as "CustomerName", i.walkin_name as "WalkInCustomerName",
+                   i.walkin_mobile as "WalkInCustomerMobile", i.salesman_staff_id as "SalesmanStaffId", salesman.name as "SalesmanName",
                    d.label as "PosTerminalLabel", x.description as "Description",
                    cast(i.gross_amount as bigint) as "GrossAmount",
                    cast(i.line_discount_amount + i.bill_discount_amount as bigint) as "DiscountAmount",
@@ -43,8 +43,8 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
                    i.row_ver as "RowVersion"
               from sales.invoices i
               join core.stores s on s.company_id = i.company_id and s.id = i.store_id
-              left join party.parties customer on customer.company_id = i.company_id and customer.id = i.customer_party_id
-              left join party.parties salesman on salesman.company_id = i.company_id and salesman.id = i.salesman_party_id
+              left join contacts.customers customer on customer.company_id = i.company_id and customer.id = i.customer_id
+              left join contacts.staff salesman on salesman.company_id = i.company_id and salesman.id = i.salesman_staff_id
               left join core.devices d on d.company_id = i.company_id and d.id = i.device_id
               left join sales.invoice_extras x on x.company_id = i.company_id and x.invoice_id = i.id
               left join sec.users voider on voider.company_id = i.company_id and voider.id = i.voided_by
@@ -95,8 +95,8 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
 
         return new SaleInvoiceResponse(
             header.Id, header.StoreId, header.StoreName, header.DocumentTypeCode, header.InvoiceNumber, header.DailyBillNumber, header.SaleDate,
-            header.OccurredAt, header.CustomerPartyId, header.CustomerName, header.WalkInCustomerName, header.WalkInCustomerMobile,
-            header.SalesmanPartyId, header.SalesmanName, header.PosTerminalLabel, header.Description, header.GrossAmount, header.DiscountAmount,
+            header.OccurredAt, header.CustomerId, header.CustomerName, header.WalkInCustomerName, header.WalkInCustomerMobile,
+            header.SalesmanStaffId, header.SalesmanName, header.PosTerminalLabel, header.Description, header.GrossAmount, header.DiscountAmount,
             header.TaxAmount, header.NetAmount, header.PaidAmount, header.CashReturnedAmount, header.OutstandingAmount, header.StatusCode,
             header.VoidReason, header.VoidedAt, header.VoidedByName, header.CreatedByName, header.OriginalInvoiceId, header.OriginalInvoiceNumber,
             header.RelatedInvoiceId, header.RelatedInvoiceNumber, header.ReplacesInvoiceId, header.ReplacesInvoiceNumber, header.RowVersion, lines, payments);
@@ -119,7 +119,7 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
         var totalCount = await databaseContext.Database.SqlQuery<long>($"""
             select count(*) as "Value"
               from sales.invoices i
-              left join party.parties customer on customer.company_id = i.company_id and customer.id = i.customer_party_id
+              left join contacts.customers customer on customer.company_id = i.company_id and customer.id = i.customer_id
              where i.company_id = {companyId}
                and (cast({filter.StoreId} as uuid) is null or i.store_id = cast({filter.StoreId} as uuid))
                and (cast({filter.FromDate} as date) is null or i.sale_date >= cast({filter.FromDate} as date))
@@ -127,8 +127,8 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
                and (cast({filter.InvoiceNumber} as bigint) is null or i.invoice_no = cast({filter.InvoiceNumber} as bigint))
                and (cast({filter.DocumentTypeCode} as text) is null or i.doc_type = cast({filter.DocumentTypeCode} as text))
                and (cast({filter.StatusCode} as text) is null or i.status = cast({filter.StatusCode} as text))
-               and (cast({filter.CustomerPartyId} as uuid) is null or i.customer_party_id = cast({filter.CustomerPartyId} as uuid))
-               and (cast({filter.SalesmanPartyId} as uuid) is null or i.salesman_party_id = cast({filter.SalesmanPartyId} as uuid))
+               and (cast({filter.CustomerId} as uuid) is null or i.customer_id = cast({filter.CustomerId} as uuid))
+               and (cast({filter.SalesmanStaffId} as uuid) is null or i.salesman_staff_id = cast({filter.SalesmanStaffId} as uuid))
                and (cast({filter.MinimumNetAmount} as bigint) is null or abs(i.net_amount) >= cast({filter.MinimumNetAmount} as bigint))
                and (cast({filter.MaximumNetAmount} as bigint) is null or abs(i.net_amount) <= cast({filter.MaximumNetAmount} as bigint))
                and (cast({searchText} as text) is null
@@ -147,8 +147,8 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
                    voider.full_name as "VoidedByName"
               from sales.invoices i
               join core.stores s on s.company_id = i.company_id and s.id = i.store_id
-              left join party.parties customer on customer.company_id = i.company_id and customer.id = i.customer_party_id
-              left join party.parties salesman on salesman.company_id = i.company_id and salesman.id = i.salesman_party_id
+              left join contacts.customers customer on customer.company_id = i.company_id and customer.id = i.customer_id
+              left join contacts.staff salesman on salesman.company_id = i.company_id and salesman.id = i.salesman_staff_id
               left join sec.users voider on voider.company_id = i.company_id and voider.id = i.voided_by
              where i.company_id = {0}
                and ({1}::uuid is null or i.store_id = {1}::uuid)
@@ -157,8 +157,8 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
                and ({4}::bigint is null or i.invoice_no = {4}::bigint)
                and ({5}::text is null or i.doc_type = {5}::text)
                and ({6}::text is null or i.status = {6}::text)
-               and ({7}::uuid is null or i.customer_party_id = {7}::uuid)
-               and ({8}::uuid is null or i.salesman_party_id = {8}::uuid)
+               and ({7}::uuid is null or i.customer_id = {7}::uuid)
+               and ({8}::uuid is null or i.salesman_staff_id = {8}::uuid)
                and ({9}::bigint is null or abs(i.net_amount) >= {9}::bigint)
                and ({10}::bigint is null or abs(i.net_amount) <= {10}::bigint)
                and ({11}::text is null
@@ -170,7 +170,7 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
             """,
             companyId, (object?)filter.StoreId ?? DBNull.Value, (object?)filter.FromDate ?? DBNull.Value, (object?)filter.ToDate ?? DBNull.Value,
             (object?)filter.InvoiceNumber ?? DBNull.Value, (object?)filter.DocumentTypeCode ?? DBNull.Value, (object?)filter.StatusCode ?? DBNull.Value,
-            (object?)filter.CustomerPartyId ?? DBNull.Value, (object?)filter.SalesmanPartyId ?? DBNull.Value,
+            (object?)filter.CustomerId ?? DBNull.Value, (object?)filter.SalesmanStaffId ?? DBNull.Value,
             (object?)filter.MinimumNetAmount ?? DBNull.Value, (object?)filter.MaximumNetAmount ?? DBNull.Value,
             (object?)searchText ?? DBNull.Value, isSearchTextNumber, searchNumber, skippedCount, pageSize).ToListAsync(cancellationToken);
 
@@ -255,16 +255,16 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
         var companyId = currentUser.CompanyId;
         var header = await databaseContext.Database.SqlQuery<ReturnableHeaderRow>($"""
             select i.id as "InvoiceId", i.invoice_no as "InvoiceNumber", i.store_id as "StoreId", i.sale_date as "SaleDate",
-                   i.customer_party_id as "CustomerPartyId", customer.name as "CustomerName", i.walkin_name as "WalkInCustomerName"
+                   i.customer_id as "CustomerId", customer.name as "CustomerName", i.walkin_name as "WalkInCustomerName"
               from sales.invoices i
-              left join party.parties customer on customer.company_id = i.company_id and customer.id = i.customer_party_id
+              left join contacts.customers customer on customer.company_id = i.company_id and customer.id = i.customer_id
              where i.company_id = {companyId} and i.store_id = {storeId} and i.doc_type = 'SALE' and i.invoice_no = {invoiceNumber} and i.status = 'POSTED'
             """).SingleOrDefaultAsync(cancellationToken);
         if (header is null) return null;
 
         var lines = await QueryReturnableLinesAsync(header.InvoiceId, [], false, cancellationToken);
         return new ReturnableInvoiceResponse(
-            header.InvoiceId, header.InvoiceNumber, header.StoreId, header.SaleDate, header.CustomerPartyId, header.CustomerName, header.WalkInCustomerName, lines);
+            header.InvoiceId, header.InvoiceNumber, header.StoreId, header.SaleDate, header.CustomerId, header.CustomerName, header.WalkInCustomerName, lines);
     }
 
     public Task<IReadOnlyList<ReturnableSaleLineResponse>> FindReturnableLinesAsync(IReadOnlyCollection<Guid> lineIds, CancellationToken cancellationToken) =>
@@ -316,19 +316,19 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
         var rows = await databaseContext.Database.SqlQuery<CustomerRow>($"""
-            select p.id as "PartyId", p.code as "Code", p.name as "Name", p.phone_primary as "PhoneNumber",
-                   cast(coalesce(b.balance, 0) as bigint) as "BalanceAmount", cast(p.credit_limit as bigint) as "CreditLimitAmount"
-              from party.parties p
-              left join party.party_balances b on b.company_id = p.company_id and b.party_id = p.id
-             where p.company_id = {companyId} and p.is_customer and not p.is_deleted and p.status = 'ACTIVE' and p.code <> 'WALKIN'
+            select p.id as "CustomerId", p.code as "Code", p.name as "Name", p.phone as "PhoneNumber",
+                   cast(coalesce(b.balance, 0) as bigint) as "BalanceAmount"
+              from contacts.customers p
+              left join contacts.customer_balances b on b.company_id = p.company_id and b.customer_id = p.id
+             where p.company_id = {companyId} and not p.is_deleted and p.status = 'ACTIVE' and p.code <> 'WALKIN'
                and (cast({searchText} as text) is null
                     or position(lower(cast({searchText} as text)) in lower(p.name)) > 0
                     or position(lower(cast({searchText} as text)) in lower(p.code)) > 0
-                    or position(lower(cast({searchText} as text)) in lower(coalesce(p.phone_primary, ''))) > 0)
+                    or position(lower(cast({searchText} as text)) in lower(coalesce(p.phone, ''))) > 0)
              order by p.name
              limit {limit}
             """).ToListAsync(cancellationToken);
-        return rows.Select(row => new SaleCustomerLookupResponse(row.PartyId, row.Code, row.Name, row.PhoneNumber, row.BalanceAmount, row.CreditLimitAmount)).ToList();
+        return rows.Select(row => new SaleCustomerLookupResponse(row.CustomerId, row.Code, row.Name, row.PhoneNumber, row.BalanceAmount)).ToList();
     }
 
     public async Task<IReadOnlyList<SaleSalesmanLookupResponse>> ListSalesmenAsync(Guid storeId, CancellationToken cancellationToken)
@@ -336,14 +336,13 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
         var rows = await databaseContext.Database.SqlQuery<SalesmanRow>($"""
-            select p.id as "PartyId", p.code as "Code", p.name as "Name", sp.is_manager as "IsManager"
-              from party.parties p
-              join party.staff_profiles sp on sp.company_id = p.company_id and sp.party_id = p.id
-             where p.company_id = {companyId} and p.is_staff and not p.is_deleted and p.status = 'ACTIVE'
-               and sp.current_store_id = {storeId} and sp.left_on is null
+            select p.id as "StaffId", p.code as "Code", p.name as "Name", p.is_manager as "IsManager"
+              from contacts.staff p
+             where p.company_id = {companyId} and not p.is_deleted and p.status = 'ACTIVE'
+               and p.current_store_id = {storeId} and p.left_on is null
              order by p.name
             """).ToListAsync(cancellationToken);
-        return rows.Select(row => new SaleSalesmanLookupResponse(row.PartyId, row.Code, row.Name, row.IsManager)).ToList();
+        return rows.Select(row => new SaleSalesmanLookupResponse(row.StaffId, row.Code, row.Name, row.IsManager)).ToList();
     }
 
     public async Task<IReadOnlyList<SalePaymentAccountResponse>> ListPaymentAccountsAsync(CancellationToken cancellationToken)
@@ -354,13 +353,13 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
             select a.id as "AccountId", a.code as "Code", a.name as "Title",
                    case when a.system_role = 'BANK' or a.group_code = '102' then 'BANK' else 'CASH' end as "KindCode", a.store_id as "StoreId"
               from acct.accounts a
-             where a.company_id = {companyId} and a.is_active and a.is_postable and not a.is_party_control
+             where a.company_id = {companyId} and a.is_active and a.is_postable and not a.is_subledger_control
                and (a.system_role in ('CASH', 'BANK') or a.group_code in ('101', '102'))
              order by case when a.system_role = 'CASH' then 0 else 1 end, a.code
             """).ToListAsync(cancellationToken);
         return rows.Select(row => new SalePaymentAccountResponse(row.AccountId, row.Code, row.Title, row.KindCode, row.StoreId)).ToList();
     }
-
+        
     public async Task<IReadOnlyList<SalePosTerminalResponse>> ListPosTerminalsAsync(Guid storeId, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
@@ -419,11 +418,11 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
         public int? DailyBillNumber { get; set; }
         public DateOnly SaleDate { get; set; }
         public DateTimeOffset OccurredAt { get; set; }
-        public Guid? CustomerPartyId { get; set; }
+        public Guid? CustomerId { get; set; }
         public string? CustomerName { get; set; }
         public string? WalkInCustomerName { get; set; }
         public string? WalkInCustomerMobile { get; set; }
-        public Guid? SalesmanPartyId { get; set; }
+        public Guid? SalesmanStaffId { get; set; }
         public string? SalesmanName { get; set; }
         public string? PosTerminalLabel { get; set; }
         public string? Description { get; set; }
@@ -532,7 +531,7 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
         public long InvoiceNumber { get; set; }
         public Guid StoreId { get; set; }
         public DateOnly SaleDate { get; set; }
-        public Guid? CustomerPartyId { get; set; }
+        public Guid? CustomerId { get; set; }
         public string? CustomerName { get; set; }
         public string? WalkInCustomerName { get; set; }
     }
@@ -561,17 +560,16 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
 
     private sealed class CustomerRow
     {
-        public Guid PartyId { get; set; }
+        public Guid CustomerId { get; set; }
         public string Code { get; set; } = "";
         public string Name { get; set; } = "";
         public string? PhoneNumber { get; set; }
         public long BalanceAmount { get; set; }
-        public long? CreditLimitAmount { get; set; }
     }
 
     private sealed class SalesmanRow
     {
-        public Guid PartyId { get; set; }
+        public Guid StaffId { get; set; }
         public string Code { get; set; } = "";
         public string Name { get; set; } = "";
         public bool IsManager { get; set; }

@@ -22,7 +22,7 @@ Request flow: `HTTP -> Controller -> Service (BLL) -> Repository (DAL) -> Postgr
 
 ## 2. Folder convention per module
 
-Module names are the PascalCase of Part 25.3: `Platform, Core, Security, MasterData, Parties, Catalogue, Inventory, Sales,
+Module names are the PascalCase of Part 25.3: `Platform, Core, Security, MasterData, Contacts, Customers, Vendors, Staff, Catalogue, Inventory, Sales,
 Purchases, Orders, Accounting, CashManagement, HumanResources, Payroll, Commissions, Expenses, Promotions, Integrations,
 OfflineSynchronization, Reporting, Audit`.
 
@@ -163,13 +163,15 @@ script); every up script has a down script; an applied script is never edited (c
 | Range | Area | Range | Area |
 |---|---|---|---|
 | 0001-0099 | foundation | 0800-0899 | HR, payroll, expenses |
-| 0100-0199 | security and settings | 0900-0999 | promotions, analytics |
-| 0200-0299 | master data, parties | 1000-1099 | orders |
+| 0100-0199 | security and settings | 0901-0999 | promotions, analytics (0900 is the customers/vendors/staff split) |
+| 0200-0299 | master data, contacts (customers, vendors, staff) | 1000-1099 | orders |
 | 0300-0399 | catalogue | 1100-1199 | reports |
 | 0400-0499 | inventory | 1200-1299 | offline synchronization |
 | 0500-0599 | sales | 1300-1399 | Shopify |
 | 0600-0699 | purchasing | 1400-1499 | production readiness |
 | 0700-0799 | accounting | | |
+
+**Every new migration is numbered ABOVE 0900.** A fresh database applies the files in number order, and the older scripts 0500, 0700 and 0800 create functions that mention the old party tables and columns. Migration `0900_split_party_into_customers_vendors_and_staff` replaces those functions and drops the party schema, so a script numbered below 0900 that touches customers, vendors, staff, journal lines or vouchers would be written against objects that no longer exist after 0900 (and one that re-creates an old function would bring the party columns back). Pick the next free number above 0900 in the area range, or 1000 and up when the area range is below 0900.
 
 ## 11. Tests
 

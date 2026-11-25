@@ -1,6 +1,6 @@
 namespace EFootwear.Domain.HumanResources;
 
-/// <summary>How often a staff member is paid. The values mirror the CHECK on <c>party.staff_profiles.pay_frequency</c> and <c>hr.salary_terms</c>.</summary>
+/// <summary>How often a staff member is paid. The values mirror the CHECK on <c>contacts.staff.pay_frequency</c> and <c>hr.salary_terms</c>.</summary>
 public static class PayFrequencyCodes
 {
     public const string Monthly = "MONTHLY";

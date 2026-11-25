@@ -3,7 +3,7 @@ namespace EFootwear.BLL.HumanResources.Contracts;
 /// <summary>One row of the Staff Transfers screen: who moved, from which store to which, from which date, authorised by whom.</summary>
 public sealed record StaffTransferListItemResponse(
     Guid Id,
-    Guid PartyId,
+    Guid StaffId,
     string StaffCode,
     string StaffName,
     Guid? FromStoreId,

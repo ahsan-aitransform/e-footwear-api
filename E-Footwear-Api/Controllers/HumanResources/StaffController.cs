@@ -11,7 +11,7 @@ namespace E_Footwear_Api.Controllers.HumanResources;
 
 /// <summary>
 /// Staff profiles with their salary information, the salary history and the store history of each staff member, and the company-wide list of staff
-/// transfers (Part 16.1). A staff member is created and edited as a party (<c>/parties</c>); moving one to another store is <c>POST /parties/{id}/staff-transfers</c>.
+/// transfers (Part 16.1). A staff member is created and edited under <c>/staff-members</c>; moving one to another store is <c>POST /staff-members/{id}/transfers</c>.
 /// </summary>
 [ApiController]
 [Authorize(Policy = AuthorizationPolicies.CompanyUserOnly)]
@@ -32,14 +32,14 @@ public sealed class StaffController(StaffDirectoryService staffDirectoryService,
 
     [HttpGet(ApiRoutes.Staff.StaffById)]
     [RequirePermission(PermissionCodes.HumanResources.StaffProfiles.View)]
-    public async Task<ActionResult<StaffDetailResponse>> Get(Guid partyId, CancellationToken cancellationToken) =>
-        Ok(await staffDirectoryService.GetAsync(partyId, cancellationToken));
+    public async Task<ActionResult<StaffDetailResponse>> Get(Guid staffId, CancellationToken cancellationToken) =>
+        Ok(await staffDirectoryService.GetAsync(staffId, cancellationToken));
 
     [HttpPut(ApiRoutes.Staff.SalaryTerms)]
     [RequirePermission(PermissionCodes.HumanResources.SalaryTerms.Edit)]
-    public async Task<IActionResult> UpdateSalaryTerms(Guid partyId, UpdateStaffSalaryTermsRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateSalaryTerms(Guid staffId, UpdateStaffSalaryTermsRequest request, CancellationToken cancellationToken)
     {
-        await staffSalaryService.UpdateSalaryTermsAsync(partyId, request, cancellationToken);
+        await staffSalaryService.UpdateSalaryTermsAsync(staffId, request, cancellationToken);
         return NoContent();
     }
 }

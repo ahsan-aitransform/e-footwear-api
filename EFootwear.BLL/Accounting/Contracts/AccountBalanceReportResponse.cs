@@ -1,6 +1,6 @@
 namespace EFootwear.BLL.Accounting.Contracts;
 
-/// <summary>The Account Balance report (docx 8.2): balances of all accounts (or parties) of one type as on a date, with the column totals.</summary>
+/// <summary>The Account Balance report (docx 8.2): balances of all accounts (or customers, vendors, staff) of one type as on a date, with the column totals.</summary>
 public sealed record AccountBalanceReportResponse(
     DateOnly AsOfDate,
     Guid? StoreId,

@@ -3,6 +3,7 @@ using EFootwear.BLL.Accounting.Abstractions;
 using EFootwear.BLL.Accounting.Contracts;
 using EFootwear.DAL.Persistence;
 using EFootwear.Domain.Accounting;
+using EFootwear.Domain.Contacts;
 using Microsoft.EntityFrameworkCore;
 
 namespace EFootwear.DAL.Accounting.Repositories;
@@ -20,16 +21,16 @@ public sealed class OpeningBalanceRepository(DatabaseSession databaseSession, IC
         var companyId = currentUser.CompanyId;
 
         // Accounts of the store. Stock and in-transit accounts are left out (opening stock is entered through inventory),
-        // and so are the party control account (parties have their own lines) and the opening equity account itself.
+        // and so are the subledger control account (customers, vendors and staff have their own lines) and the opening equity account itself.
         var accountRows = await databaseContext.Database.SqlQuery<OpeningRow>($"""
-            select a.id as "AccountId", cast(null as uuid) as "PartyId", a.code as "Code", a.name as "Name",
+            select a.id as "AccountId", cast(null as uuid) as "CustomerId", cast(null as uuid) as "VendorId", cast(null as uuid) as "StaffId", a.code as "Code", a.name as "Name",
                    cast(null as text) as "AreaName",
                    coalesce(v.debit, 0) as "DebitAmount", coalesce(v.credit, 0) as "CreditAmount", v.entry_date as "EntryDate"
               from acct.accounts a
               left join acct.v_live_opening_balances v
-                     on v.company_id = a.company_id and v.account_id = a.id and v.party_id is null
+                     on v.company_id = a.company_id and v.account_id = a.id and v.customer_id is null and v.vendor_id is null and v.staff_id is null
              where a.company_id = {companyId} and a.store_id = {storeId}
-               and a.is_active and a.is_postable and not a.is_party_control
+               and a.is_active and a.is_postable and not a.is_subledger_control
                and coalesce(a.system_role, '') not in ('STOCK', 'TRANSIT', 'OPENING_EQUITY')
              order by a.code
             """).ToListAsync(cancellationToken);
@@ -37,38 +38,56 @@ public sealed class OpeningBalanceRepository(DatabaseSession databaseSession, IC
         var rows = accountRows.Select(ToResponse).ToList();
         if (storeId != AccountingScope.HeadOfficeStoreId) return rows;
 
-        // Parties are company-wide, so their opening balances are listed with the head office.
-        var partyRows = await databaseContext.Database.SqlQuery<OpeningRow>($"""
-            select cast(null as uuid) as "AccountId", p.id as "PartyId", p.code as "Code", p.name as "Name",
-                   c.name as "AreaName",
-                   coalesce(v.debit, 0) as "DebitAmount", coalesce(v.credit, 0) as "CreditAmount", v.entry_date as "EntryDate"
-              from party.parties p
-              left join master.cities c on c.company_id = p.company_id and c.id = p.city_id
-              left join acct.v_live_opening_balances v on v.company_id = p.company_id and v.party_id = p.id
-             where p.company_id = {companyId} and not p.is_deleted
-             order by p.code
+        // Customers, vendors and staff are company-wide, so their opening balances are listed with the head office.
+        var contactRows = await databaseContext.Database.SqlQuery<OpeningRow>($"""
+            select * from (
+                select cast(null as uuid) as "AccountId", p.id as "CustomerId", cast(null as uuid) as "VendorId", cast(null as uuid) as "StaffId",
+                       p.code as "Code", p.name as "Name", c.name as "AreaName",
+                       coalesce(v.debit, 0) as "DebitAmount", coalesce(v.credit, 0) as "CreditAmount", v.entry_date as "EntryDate"
+                  from contacts.customers p
+                  left join master.cities c on c.company_id = p.company_id and c.id = p.city_id
+                  left join acct.v_live_opening_balances v on v.company_id = p.company_id and v.customer_id = p.id
+                 where p.company_id = {companyId} and not p.is_deleted
+                union all
+                select cast(null as uuid), cast(null as uuid), p.id, cast(null as uuid), p.code, p.name, c.name,
+                       coalesce(v.debit, 0), coalesce(v.credit, 0), v.entry_date
+                  from contacts.vendors p
+                  left join master.cities c on c.company_id = p.company_id and c.id = p.city_id
+                  left join acct.v_live_opening_balances v on v.company_id = p.company_id and v.vendor_id = p.id
+                 where p.company_id = {companyId} and not p.is_deleted
+                union all
+                select cast(null as uuid), cast(null as uuid), cast(null as uuid), p.id, p.code, p.name, c.name,
+                       coalesce(v.debit, 0), coalesce(v.credit, 0), v.entry_date
+                  from contacts.staff p
+                  left join master.cities c on c.company_id = p.company_id and c.id = p.city_id
+                  left join acct.v_live_opening_balances v on v.company_id = p.company_id and v.staff_id = p.id
+                 where p.company_id = {companyId} and not p.is_deleted
+            ) contact_rows
+             order by "Code", "CustomerId", "VendorId", "StaffId"
             """).ToListAsync(cancellationToken);
-        rows.AddRange(partyRows.Select(ToResponse));
+        rows.AddRange(contactRows.Select(ToResponse));
         return rows;
     }
 
-    public async Task PostAsync(Guid? accountId, Guid? partyId, Guid storeId, long debitAmount, long creditAmount, DateOnly entryDate,
+    public async Task PostAsync(Guid? accountId, ContactReference? contact, Guid storeId, long debitAmount, long creditAmount, DateOnly entryDate,
                                 CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
         await databaseContext.Database.ExecuteSqlAsync($"""
-            select acct.post_opening_balance({companyId}, {accountId}, {partyId}, {storeId}, {debitAmount}, {creditAmount}, {entryDate})
+            select acct.post_opening_balance({companyId}, {accountId}, {contact?.KindCode}, {contact?.Id}, {storeId}, {debitAmount}, {creditAmount}, {entryDate})
             """, cancellationToken);
     }
 
     private static OpeningBalanceRowResponse ToResponse(OpeningRow row) =>
-        new(row.AccountId, row.PartyId, row.Code, row.Name, row.AreaName, row.DebitAmount, row.CreditAmount, row.EntryDate);
+        new(row.AccountId, row.CustomerId, row.VendorId, row.StaffId, row.Code, row.Name, row.AreaName, row.DebitAmount, row.CreditAmount, row.EntryDate);
 
     private sealed class OpeningRow
     {
         public Guid? AccountId { get; set; }
-        public Guid? PartyId { get; set; }
+        public Guid? CustomerId { get; set; }
+        public Guid? VendorId { get; set; }
+        public Guid? StaffId { get; set; }
         public string Code { get; set; } = "";
         public string Name { get; set; } = "";
         public string? AreaName { get; set; }

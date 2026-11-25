@@ -5,7 +5,7 @@ public sealed record SalaryOutstandingReportRowResponse(
     DateOnly PeriodMonth,
     Guid StoreId,
     string StoreName,
-    Guid EmployeePartyId,
+    Guid StaffId,
     string EmployeeName,
     long NetPay,
     long PaidAmount,

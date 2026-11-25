@@ -1,7 +1,7 @@
 using EFootwear.BLL.Abstractions;
 using EFootwear.BLL.Common;
 using EFootwear.BLL.Core.Services;
-using EFootwear.BLL.Parties.Abstractions;
+using EFootwear.BLL.Staff.Abstractions;
 using EFootwear.BLL.Payroll.Abstractions;
 using EFootwear.BLL.Payroll.Contracts;
 using EFootwear.Domain.Common;
@@ -21,7 +21,7 @@ namespace EFootwear.BLL.Payroll.Services;
 /// </summary>
 public sealed class PayrollSheetService(
     IPayrollRepository payrollRepository,
-    IPartyRepository partyRepository,
+    IStaffMemberRepository staffMemberRepository,
     StoreAccessGuard storeAccessGuard,
     ICurrentUser currentUser,
     IUnitOfWork unitOfWork,
@@ -79,19 +79,19 @@ public sealed class PayrollSheetService(
         PayrollRules.EnsureAdjustmentIsValid(request.AdjustmentTypeCode, request.Amount, request.Reason);
         var periodMonth = PayrollRules.NormalizeToFirstDayOfMonth(request.Month);
 
-        var staffStoreId = await partyRepository.FindStaffStoreIdAsync(request.EmployeePartyId, cancellationToken)
+        var staffStoreId = await staffMemberRepository.FindStoreIdAsync(request.StaffId, cancellationToken)
             ?? throw new DomainException(ErrorKind.Validation, "Choose a staff member.");
         if (!currentUser.CanAccessStore(staffStoreId))
             throw new DomainException(ErrorKind.Forbidden, "You do not have access to the store of this staff member.");
-        if (await payrollRepository.HasApprovedLineAsync(request.EmployeePartyId, periodMonth, cancellationToken))
+        if (await payrollRepository.HasApprovedLineAsync(request.StaffId, periodMonth, cancellationToken))
             throw new DomainException(ErrorKind.Conflict,
                 "The salary of this person for that month is already approved, so a new adjustment would never be paid. Enter it for the next month.");
 
         var cleanedRequest = request with { Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim() };
         var adjustmentId = await payrollRepository.AddAdjustmentAsync(cleanedRequest, periodMonth, currentUser.UserId, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
-        logger.LogInformation("Payroll adjustment {AdjustmentId} ({AdjustmentTypeCode}) entered for staff {EmployeePartyId} by user {UserId}",
-            adjustmentId, request.AdjustmentTypeCode, request.EmployeePartyId, currentUser.UserId);
+        logger.LogInformation("Payroll adjustment {AdjustmentId} ({AdjustmentTypeCode}) entered for staff {StaffId} by user {UserId}",
+            adjustmentId, request.AdjustmentTypeCode, request.StaffId, currentUser.UserId);
         return new CreatedIdResponse(adjustmentId);
     }
 

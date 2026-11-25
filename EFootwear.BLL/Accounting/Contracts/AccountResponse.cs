@@ -11,6 +11,6 @@ public sealed record AccountResponse(
     Guid StoreId,
     string? SystemRole,
     bool IsPostable,
-    bool IsPartyControl,
+    bool IsSubledgerControl,
     bool IsActive,
     long RowVersion);

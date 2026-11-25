@@ -31,7 +31,7 @@ public sealed class SaleInvoicePostingRepository(DatabaseSession databaseSession
 
         return await RunAsync(async () => await databaseContext.Database.SqlQuery<Guid>($"""
             select sales.post_sale_invoice({companyId}, {request.StoreId}, {request.SaleDate}, {request.ClientTransactionId},
-                                           {request.CustomerPartyId}, {request.SalesmanPartyId}, {request.WalkInCustomerName}, {request.WalkInCustomerMobile},
+                                           {request.CustomerId}, {request.SalesmanStaffId}, {request.WalkInCustomerName}, {request.WalkInCustomerMobile},
                                            {request.PosTerminalDeviceId}, {request.Description}, cast({linesJson} as jsonb), cast({paymentsJson} as jsonb),
                                            {request.CashReturnedAmount}, {priceChangePermission}, {discountPermission}, {replacedInvoiceId}, {replaceReason},
                                            {false}) as "Value"
@@ -45,7 +45,7 @@ public sealed class SaleInvoicePostingRepository(DatabaseSession databaseSession
         var linesJson = ReturnedLinesToJson(request.Lines);
 
         return await RunAsync(async () => await databaseContext.Database.SqlQuery<Guid>($"""
-            select sales.post_return_invoice({companyId}, {request.StoreId}, {request.ReturnDate}, {request.ClientTransactionId}, {request.CustomerPartyId},
+            select sales.post_return_invoice({companyId}, {request.StoreId}, {request.ReturnDate}, {request.ClientTransactionId}, {request.CustomerId},
                                              {request.Description}, cast({linesJson} as jsonb)) as "Value"
             """).SingleAsync(cancellationToken));
     }
@@ -60,8 +60,8 @@ public sealed class SaleInvoicePostingRepository(DatabaseSession databaseSession
 
         var row = await RunAsync(async () => await databaseContext.Database.SqlQuery<ExchangeRow>($"""
             select return_invoice_id as "ReturnInvoiceId", sale_invoice_id as "SaleInvoiceId"
-              from sales.post_exchange({companyId}, {request.StoreId}, {request.ExchangeDate}, {request.ClientTransactionId}, {request.CustomerPartyId},
-                                       {request.SalesmanPartyId}, {request.WalkInCustomerName}, {request.WalkInCustomerMobile}, {request.PosTerminalDeviceId},
+              from sales.post_exchange({companyId}, {request.StoreId}, {request.ExchangeDate}, {request.ClientTransactionId}, {request.CustomerId},
+                                       {request.SalesmanStaffId}, {request.WalkInCustomerName}, {request.WalkInCustomerMobile}, {request.PosTerminalDeviceId},
                                        {request.Description}, cast({returnedLinesJson} as jsonb), cast({newSaleLinesJson} as jsonb),
                                        cast({paymentsJson} as jsonb), {request.CashReturnedAmount})
             """).SingleAsync(cancellationToken));

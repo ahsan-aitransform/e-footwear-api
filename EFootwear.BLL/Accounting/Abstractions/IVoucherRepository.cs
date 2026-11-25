@@ -29,7 +29,7 @@ public interface IVoucherRepository
     /// <summary>Voids the voucher by a reversing journal entry (database function acct.void_voucher).</summary>
     Task VoidAsync(Guid voucherId, string reason, CancellationToken cancellationToken);
 
-    /// <summary>Accounts or parties that can be chosen as "To" / "From", with their current balance. <c>kindCode</c> is ACCOUNT or PARTY.</summary>
+    /// <summary>Accounts, customers, vendors or staff that can be chosen as "To" / "From", with their current balance. <c>kindCode</c> is ACCOUNT, CUSTOMER, VENDOR or STAFF.</summary>
     Task<IReadOnlyList<VoucherTargetOptionResponse>> SearchTargetsAsync(
-        string kindCode, string? searchText, string? partyTypeCode, string? groupCode, int limit, CancellationToken cancellationToken);
+        string kindCode, string? searchText, string? groupCode, int limit, CancellationToken cancellationToken);
 }

@@ -6,7 +6,7 @@ using EFootwear.DAL.Common;
 using EFootwear.DAL.Persistence;
 using EFootwear.Domain.CashManagement;
 using EFootwear.Domain.Common;
-using EFootwear.Domain.Parties;
+using EFootwear.Domain.Contacts;
 using Microsoft.EntityFrameworkCore;
 
 namespace EFootwear.DAL.CashManagement.Repositories;
@@ -65,7 +65,7 @@ public sealed class PromiseRepository(DatabaseSession databaseSession, ICurrentU
             CompanyId = companyId,
             PromiseNumber = promiseNumber,
             StoreId = request.StoreId,
-            CustomerPartyId = request.CustomerPartyId,
+            CustomerId = request.CustomerId,
             PromiseDate = request.PromiseDate,
             DueDate = request.DueDate,
             PromisedAmount = request.PromisedAmount,
@@ -95,25 +95,25 @@ public sealed class PromiseRepository(DatabaseSession databaseSession, ICurrentU
         databaseContext.Entry(promise).Property(entity => entity.RowVersion).OriginalValue = rowVersion;
     }
 
-    public async Task<CustomerBalanceResponse?> GetCustomerBalanceAsync(Guid customerPartyId, CancellationToken cancellationToken)
+    public async Task<CustomerBalanceResponse?> GetCustomerBalanceAsync(Guid customerId, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
-        var customer = await (from party in databaseContext.Parties.AsNoTracking()
-                              where party.CompanyId == companyId && party.Id == customerPartyId && !party.IsDeleted && party.IsCustomer
-                              join balance in databaseContext.PartyBalances.AsNoTracking() on new { party.CompanyId, PartyId = party.Id } equals new { balance.CompanyId, balance.PartyId } into balanceGroup
+        var customer = await (from candidate in databaseContext.Customers.AsNoTracking()
+                              where candidate.CompanyId == companyId && candidate.Id == customerId && !candidate.IsDeleted
+                              join balance in databaseContext.CustomerBalances.AsNoTracking() on new { candidate.CompanyId, CustomerId = candidate.Id } equals new { balance.CompanyId, balance.CustomerId } into balanceGroup
                               from balance in balanceGroup.DefaultIfEmpty()
-                              select new { party.Id, party.Name, BalanceAmount = balance == null ? 0 : balance.Balance })
+                              select new { candidate.Id, candidate.Name, BalanceAmount = balance == null ? 0 : balance.Balance })
             .SingleOrDefaultAsync(cancellationToken);
         return customer is null ? null : new CustomerBalanceResponse(customer.Id, customer.Name, customer.BalanceAmount);
     }
 
-    public async Task<bool> IsActiveCustomerAsync(Guid customerPartyId, CancellationToken cancellationToken)
+    public async Task<bool> IsActiveCustomerAsync(Guid customerId, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
-        return await databaseContext.Parties.AsNoTracking().AnyAsync(party =>
-            party.CompanyId == companyId && party.Id == customerPartyId && !party.IsDeleted && party.IsCustomer && party.Status == PartyStatusCodes.Active, cancellationToken);
+        return await databaseContext.Customers.AsNoTracking().AnyAsync(customer =>
+            customer.CompanyId == companyId && customer.Id == customerId && !customer.IsDeleted && customer.Status == ContactStatusCodes.Active, cancellationToken);
     }
 
     private async Task<IQueryable<PromiseRow>> RowsAsync(CancellationToken cancellationToken)
@@ -122,8 +122,8 @@ public sealed class PromiseRepository(DatabaseSession databaseSession, ICurrentU
         var companyId = currentUser.CompanyId;
         return from promise in databaseContext.CashPromises.AsNoTracking()
                where promise.CompanyId == companyId
-               join party in databaseContext.Parties.AsNoTracking() on new { promise.CompanyId, Id = promise.CustomerPartyId } equals new { party.CompanyId, party.Id }
-               select new PromiseRow { Promise = promise, CustomerName = party.Name };
+               join customer in databaseContext.Customers.AsNoTracking() on new { promise.CompanyId, Id = promise.CustomerId } equals new { customer.CompanyId, customer.Id }
+               select new PromiseRow { Promise = promise, CustomerName = customer.Name };
     }
 
     private async Task<CashPromise> RequireTrackedPromiseAsync(Guid promiseId, CancellationToken cancellationToken)
@@ -135,7 +135,7 @@ public sealed class PromiseRepository(DatabaseSession databaseSession, ICurrentU
     }
 
     private static PromiseResponse ToResponse(PromiseRow row) => new(
-        row.Promise.Id, row.Promise.PromiseNumber, row.Promise.StoreId, row.Promise.CustomerPartyId, row.CustomerName,
+        row.Promise.Id, row.Promise.PromiseNumber, row.Promise.StoreId, row.Promise.CustomerId, row.CustomerName,
         row.Promise.PromiseDate, row.Promise.DueDate, row.Promise.PromisedAmount, row.Promise.PaidAmount,
         row.Promise.PromisedAmount - row.Promise.PaidAmount, row.Promise.Status, row.Promise.Note, row.Promise.RowVersion);
 

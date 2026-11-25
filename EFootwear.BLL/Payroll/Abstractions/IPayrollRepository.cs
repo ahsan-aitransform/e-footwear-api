@@ -23,7 +23,7 @@ public interface IPayrollRepository
     Task<IReadOnlyList<PayrollAdjustmentResponse>> ListAdjustmentsAsync(Guid storeId, DateOnly periodMonth, CancellationToken cancellationToken);
 
     /// <summary>True when the employee already has an approved or paid line for the month (an adjustment entered now would never reach a sheet).</summary>
-    Task<bool> HasApprovedLineAsync(Guid employeePartyId, DateOnly periodMonth, CancellationToken cancellationToken);
+    Task<bool> HasApprovedLineAsync(Guid staffId, DateOnly periodMonth, CancellationToken cancellationToken);
 
     Task<Guid> AddAdjustmentAsync(CreatePayrollAdjustmentRequest request, DateOnly periodMonth, Guid userId, CancellationToken cancellationToken);
 

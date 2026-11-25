@@ -16,28 +16,28 @@ namespace E_Footwear_Api.Controllers.CashManagement;
 public sealed class PromisesController(PromiseService promiseService) : ControllerBase
 {
     [HttpGet]
-    [RequirePermission(PermissionCodes.Party.Promise.View)]
+    [RequirePermission(PermissionCodes.Customers.Promise.View)]
     public async Task<ActionResult<PromiseListResponse>> List(
         [FromQuery] PromiseSearchRequest filter, [FromQuery] PageRequest pageRequest, CancellationToken cancellationToken) =>
         Ok(await promiseService.SearchAsync(filter, pageRequest, cancellationToken));
 
     [HttpGet(ApiRoutes.Promises.PromiseById)]
-    [RequirePermission(PermissionCodes.Party.Promise.View)]
+    [RequirePermission(PermissionCodes.Customers.Promise.View)]
     public async Task<ActionResult<PromiseResponse>> Get(Guid promiseId, CancellationToken cancellationToken) =>
         Ok(await promiseService.GetAsync(promiseId, cancellationToken));
 
     [HttpGet(ApiRoutes.Promises.CustomerBalance)]
-    [RequirePermission(PermissionCodes.Party.Promise.View)]
-    public async Task<ActionResult<CustomerBalanceResponse>> GetCustomerBalance(Guid customerPartyId, CancellationToken cancellationToken) =>
-        Ok(await promiseService.GetCustomerBalanceAsync(customerPartyId, cancellationToken));
+    [RequirePermission(PermissionCodes.Customers.Promise.View)]
+    public async Task<ActionResult<CustomerBalanceResponse>> GetCustomerBalance(Guid customerId, CancellationToken cancellationToken) =>
+        Ok(await promiseService.GetCustomerBalanceAsync(customerId, cancellationToken));
 
     [HttpPost]
-    [RequirePermission(PermissionCodes.Party.Promise.Add)]
+    [RequirePermission(PermissionCodes.Customers.Promise.Add)]
     public async Task<ActionResult<CreatedIdResponse>> Create(CreatePromiseRequest request, CancellationToken cancellationToken) =>
         StatusCode(StatusCodes.Status201Created, await promiseService.CreateAsync(request, cancellationToken));
 
     [HttpPut(ApiRoutes.Promises.PromiseById)]
-    [RequirePermission(PermissionCodes.Party.Promise.Edit)]
+    [RequirePermission(PermissionCodes.Customers.Promise.Edit)]
     public async Task<IActionResult> Update(Guid promiseId, UpdatePromiseRequest request, CancellationToken cancellationToken)
     {
         await promiseService.UpdateAsync(promiseId, request, cancellationToken);
@@ -45,7 +45,7 @@ public sealed class PromisesController(PromiseService promiseService) : Controll
     }
 
     [HttpDelete(ApiRoutes.Promises.PromiseById)]
-    [RequirePermission(PermissionCodes.Party.Promise.Delete)]
+    [RequirePermission(PermissionCodes.Customers.Promise.Delete)]
     public async Task<IActionResult> Cancel(Guid promiseId, [FromQuery] long rowVersion, CancellationToken cancellationToken)
     {
         await promiseService.CancelAsync(promiseId, rowVersion, cancellationToken);

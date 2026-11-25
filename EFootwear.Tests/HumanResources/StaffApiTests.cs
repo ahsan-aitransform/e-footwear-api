@@ -5,7 +5,7 @@ using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Accounting;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using EFootwear.Tests.Parties;
+using EFootwear.Tests.Contacts;
 using static EFootwear.Tests.Payroll.PayrollTestHelpers;
 
 namespace EFootwear.Tests.HumanResources;
@@ -75,10 +75,10 @@ public class StaffApiTests(ApiTestEnvironment environment)
         Assert.Equal("Mubeen Cashier", Assert.Single(secondStoreOnly.GetProperty("items").EnumerateArray()).GetProperty("name").GetString());
 
         var searched = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{StaffUrl}?searchText=zaman"));
-        Assert.Equal(firstStaffId, Assert.Single(searched.GetProperty("items").EnumerateArray()).GetProperty("partyId").GetGuid());
+        Assert.Equal(firstStaffId, Assert.Single(searched.GetProperty("items").EnumerateArray()).GetProperty("staffId").GetGuid());
 
         await environment.Database.ExecuteAsOwnerAsync(
-            "update party.staff_profiles set left_on = date '2026-09-30' where company_id = $1 and party_id = $2", scenario.CompanyId, firstStaffId);
+            "update contacts.staff set left_on = date '2026-09-30' where company_id = $1 and id = $2", scenario.CompanyId, firstStaffId);
         var withoutFormer = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(StaffUrl));
         var withFormer = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{StaffUrl}?includeFormerStaff=true"));
         Assert.Equal(1, withoutFormer.GetProperty("totalCount").GetInt64());
@@ -96,7 +96,7 @@ public class StaffApiTests(ApiTestEnvironment environment)
             PermissionCodes.HumanResources.StaffProfiles.View, PermissionCodes.HumanResources.SalaryTerms.Edit);
 
         var list = await OwnerCompanyScenario.ReadJsonAsync(await manager.GetAsync(StaffUrl));
-        Assert.Equal(ownStoreStaffId, Assert.Single(list.GetProperty("items").EnumerateArray()).GetProperty("partyId").GetGuid());
+        Assert.Equal(ownStoreStaffId, Assert.Single(list.GetProperty("items").EnumerateArray()).GetProperty("staffId").GetGuid());
 
         Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync($"{StaffUrl}/{ownStoreStaffId}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync($"{StaffUrl}/{otherStoreStaffId}")).StatusCode);
@@ -113,7 +113,7 @@ public class StaffApiTests(ApiTestEnvironment environment)
         var secondStoreId = await scenario.CreateStoreAsync("ST2");
         var staffId = await CreateStaffAsync(environment, scenario, "Moving Staff", scenario.FirstStoreId, 20_000);
 
-        var transfer = await scenario.OwnerClient.PostAsJsonAsync($"{PartyTestHelpers.PartiesUrl}/{staffId}/staff-transfers",
+        var transfer = await scenario.OwnerClient.PostAsJsonAsync($"{ContactTestHelpers.StaffMembersUrl}/{staffId}/transfers",
             new { toStoreId = secondStoreId, effectiveOn = "2026-10-15" });
         Assert.Equal(HttpStatusCode.NoContent, transfer.StatusCode);
 
@@ -127,7 +127,7 @@ public class StaffApiTests(ApiTestEnvironment environment)
         Assert.False(string.IsNullOrWhiteSpace(move.GetProperty("changedByName").GetString()));
         Assert.False(string.IsNullOrWhiteSpace(move.GetProperty("fromStoreName").GetString()));
 
-        var transfers = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{StaffTransfersUrl}?partyId={staffId}"));
+        var transfers = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{StaffTransfersUrl}?staffId={staffId}"));
         Assert.Equal(2, transfers.GetProperty("totalCount").GetInt64());
         Assert.Equal("Moving Staff", transfers.GetProperty("items")[0].GetProperty("staffName").GetString());
     }
@@ -140,8 +140,8 @@ public class StaffApiTests(ApiTestEnvironment environment)
         var thirdStoreId = await scenario.CreateStoreAsync("ST3");
         var staffInSecond = await CreateStaffAsync(environment, scenario, "Second To Third", secondStoreId, 10_000);
         var staffInFirst = await CreateStaffAsync(environment, scenario, "First To Second", scenario.FirstStoreId, 10_000);
-        await scenario.OwnerClient.PostAsJsonAsync($"{PartyTestHelpers.PartiesUrl}/{staffInSecond}/staff-transfers", new { toStoreId = thirdStoreId, effectiveOn = "2026-10-10" });
-        await scenario.OwnerClient.PostAsJsonAsync($"{PartyTestHelpers.PartiesUrl}/{staffInFirst}/staff-transfers", new { toStoreId = secondStoreId, effectiveOn = "2026-10-12" });
+        await scenario.OwnerClient.PostAsJsonAsync($"{ContactTestHelpers.StaffMembersUrl}/{staffInSecond}/transfers", new { toStoreId = thirdStoreId, effectiveOn = "2026-10-10" });
+        await scenario.OwnerClient.PostAsJsonAsync($"{ContactTestHelpers.StaffMembersUrl}/{staffInFirst}/transfers", new { toStoreId = secondStoreId, effectiveOn = "2026-10-12" });
         var firstStoreManager = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId],
             PermissionCodes.HumanResources.StaffTransfers.View);
 

@@ -13,7 +13,7 @@ public sealed record GeneralJournalRowResponse(
     string StoreName,
     string AccountCode,
     string AccountTitle,
-    string? PartyName,
+    string? ContactName,
     string TypeCode,
     long? VoucherNumber,
     string? Description,

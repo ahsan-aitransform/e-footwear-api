@@ -17,9 +17,13 @@ public static class VoucherTestHelpers
     public static string ExpenseUrl => $"{VouchersUrl}/{ApiRoutes.Vouchers.Expense}";
     public static string JournalUrl => $"{VouchersUrl}/{ApiRoutes.Vouchers.Journal}";
 
-    public static object AccountTarget(Guid accountId) => new { accountId = (Guid?)accountId, partyId = (Guid?)null };
+    public static object AccountTarget(Guid accountId) => new { accountId = (Guid?)accountId, customerId = (Guid?)null, vendorId = (Guid?)null, staffId = (Guid?)null };
 
-    public static object PartyTarget(Guid partyId) => new { accountId = (Guid?)null, partyId = (Guid?)partyId };
+    public static object CustomerTarget(Guid customerId) => new { accountId = (Guid?)null, customerId = (Guid?)customerId, vendorId = (Guid?)null, staffId = (Guid?)null };
+
+    public static object VendorTarget(Guid vendorId) => new { accountId = (Guid?)null, customerId = (Guid?)null, vendorId = (Guid?)vendorId, staffId = (Guid?)null };
+
+    public static object StaffTarget(Guid staffId) => new { accountId = (Guid?)null, customerId = (Guid?)null, vendorId = (Guid?)null, staffId = (Guid?)staffId };
 
     /// <summary>A voucher request. <c>debit</c> is the "To" box (Dr), <c>credit</c> the "From" box (Cr).</summary>
     public static object VoucherBody(
@@ -58,16 +62,20 @@ public static class VoucherTestHelpers
         await environment.Database.QueryScalarAsOwnerAsync<long>(
             "select coalesce(sum(debit - credit), 0)::bigint from acct.journal_lines where company_id = $1 and account_id = $2", companyId, accountId);
 
-    public static async Task<long> PartyNetBalanceAsync(ApiTestEnvironment environment, Guid companyId, Guid partyId) =>
+    public static async Task<long> VendorNetBalanceAsync(ApiTestEnvironment environment, Guid companyId, Guid vendorId) =>
         await environment.Database.QueryScalarAsOwnerAsync<long>(
-            "select coalesce(sum(debit - credit), 0)::bigint from acct.journal_lines where company_id = $1 and party_id = $2", companyId, partyId);
+            "select coalesce(sum(debit - credit), 0)::bigint from acct.journal_lines where company_id = $1 and vendor_id = $2", companyId, vendorId);
+
+    public static async Task<long> CustomerNetBalanceAsync(ApiTestEnvironment environment, Guid companyId, Guid customerId) =>
+        await environment.Database.QueryScalarAsOwnerAsync<long>(
+            "select coalesce(sum(debit - credit), 0)::bigint from acct.journal_lines where company_id = $1 and customer_id = $2", companyId, customerId);
 
     /// <summary>
     /// A posted purchase invoice of one vendor, made directly in the database (the purchasing module builds them through its own screens).
     /// The journal entry is inserted first and the invoice points at it, which is exactly the state the posting trigger leaves behind.
     /// </summary>
     public static async Task<Guid> CreatePurchaseInvoiceAsync(
-        ApiTestEnvironment environment, Guid companyId, Guid storeId, Guid vendorPartyId, long netAmount, long invoiceNumber = 1)
+        ApiTestEnvironment environment, Guid companyId, Guid storeId, Guid vendorId, long netAmount, long invoiceNumber = 1)
     {
         var entryId = Guid.NewGuid();
         var invoiceId = Guid.NewGuid();
@@ -79,12 +87,12 @@ public static class VoucherTestHelpers
                 insert into acct.journal_lines (company_id, entry_id, entry_date, line_no, store_id, account_id, debit, credit)
                 select $1, $2, date '2026-11-05', 1, $3, acct.role_account($1, 'STOCK'), $5, 0 from entry
             ), vendor_line as (
-                insert into acct.journal_lines (company_id, entry_id, entry_date, line_no, store_id, account_id, party_id, debit, credit)
-                select $1, $2, date '2026-11-05', 2, $3, acct.role_account($1, 'PARTY_CONTROL'), $6, 0, $5 from entry
+                insert into acct.journal_lines (company_id, entry_id, entry_date, line_no, store_id, account_id, vendor_id, debit, credit)
+                select $1, $2, date '2026-11-05', 2, $3, acct.role_account($1, 'SUBLEDGER_CONTROL'), $6, 0, $5 from entry
             )
-            insert into purch.invoices (company_id, id, store_id, doc_type, invoice_no, vendor_party_id, bill_date, gross_amount, net_amount, status, journal_entry_id)
+            insert into purch.invoices (company_id, id, store_id, doc_type, invoice_no, vendor_id, bill_date, gross_amount, net_amount, status, journal_entry_id)
             select $1, $4, $3, 'PURCHASE', $7, $6, date '2026-11-05', $5, $5, 'POSTED', $2 from entry
-            """, companyId, entryId, storeId, invoiceId, netAmount, vendorPartyId, invoiceNumber);
+            """, companyId, entryId, storeId, invoiceId, netAmount, vendorId, invoiceNumber);
         return invoiceId;
     }
 

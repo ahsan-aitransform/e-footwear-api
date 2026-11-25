@@ -16,13 +16,13 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
     // Parameters: 0 company, 1 store, 2 first month, 3 last month, 4 employee, 5 may use every store, 6 the stores the caller may use.
     private const string StaffSalaryFromAndWhere = """
         from hr.payroll_lines l
-        join party.parties p on p.company_id = l.company_id and p.id = l.employee_party_id
+        join contacts.staff p on p.company_id = l.company_id and p.id = l.staff_id
         join core.stores s on s.company_id = l.company_id and s.id = l.store_id
-        left join party.staff_profiles sp on sp.company_id = l.company_id and sp.party_id = l.employee_party_id
+        left join contacts.staff sp on sp.company_id = l.company_id and sp.id = l.staff_id
         where l.company_id = {0} and l.status <> 'CANCELLED'
           and l.period_month between cast({2} as date) and cast({3} as date)
           and (cast({1} as uuid) is null or l.store_id = cast({1} as uuid))
-          and (cast({4} as uuid) is null or l.employee_party_id = cast({4} as uuid))
+          and (cast({4} as uuid) is null or l.staff_id = cast({4} as uuid))
           and (cast({5} as boolean) or l.store_id = any(cast({6} as uuid[])))
         """;
 
@@ -32,7 +32,7 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
         join core.stores s on s.company_id = v.company_id and s.id = v.store_id
         where v.company_id = {0} and v.status = 'APPROVED' and v.outstanding_amount > 0
           and (cast({1} as uuid) is null or v.store_id = cast({1} as uuid))
-          and (cast({2} as uuid) is null or v.employee_party_id = cast({2} as uuid))
+          and (cast({2} as uuid) is null or v.staff_id = cast({2} as uuid))
           and (cast({3} as boolean) or v.store_id = any(cast({4} as uuid[])))
         """;
 
@@ -41,7 +41,7 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         object?[] filterParameters =
         [
-            currentUser.CompanyId, request.StoreId, request.FromMonth, request.ToMonth, request.EmployeePartyId,
+            currentUser.CompanyId, request.StoreId, request.FromMonth, request.ToMonth, request.StaffId,
             currentUser.HasAccessToAllStores, currentUser.AssignedStoreIds.ToArray(),
         ];
 
@@ -59,7 +59,7 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
 
         var parameters = filterParameters.Concat(new object?[] { rowLimit + 1 }).ToArray();
         var rows = await databaseContext.Database.SqlQueryRaw<StaffSalaryRow>($$"""
-            select l.period_month as "PeriodMonth", l.store_id as "StoreId", s.name as "StoreName", l.employee_party_id as "EmployeePartyId",
+            select l.period_month as "PeriodMonth", l.store_id as "StoreId", s.name as "StoreName", l.staff_id as "StaffId",
                    p.code as "EmployeeCode", p.name as "EmployeeName", sp.designation as "Designation", l.base_salary as "BaseSalary",
                    l.commission_amount as "CommissionAmount", l.incentive_amount as "IncentiveAmount", l.deduction_amount as "DeductionAmount",
                    l.net_pay as "NetPay", l.paid_amount as "PaidAmount", l.outstanding_amount as "OutstandingAmount", l.status as "StatusCode"
@@ -70,7 +70,7 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
 
         return new StaffSalaryReportResponse(
             rows.Take(rowLimit).Select(row => new StaffSalaryReportRowResponse(
-                row.PeriodMonth, row.StoreId, row.StoreName, row.EmployeePartyId, row.EmployeeCode, row.EmployeeName, row.Designation, row.BaseSalary,
+                row.PeriodMonth, row.StoreId, row.StoreName, row.StaffId, row.EmployeeCode, row.EmployeeName, row.Designation, row.BaseSalary,
                 row.CommissionAmount, row.IncentiveAmount, row.DeductionAmount, row.NetPay, row.PaidAmount, row.OutstandingAmount, row.StatusCode)).ToList(),
             totals.TotalBaseSalary, totals.TotalCommission, totals.TotalIncentive, totals.TotalDeduction, totals.TotalNetPay, totals.TotalPaid,
             totals.TotalOutstanding, totals.LineCount, rows.Count > rowLimit);
@@ -81,7 +81,7 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         object?[] filterParameters =
         [
-            currentUser.CompanyId, request.StoreId, request.EmployeePartyId, currentUser.HasAccessToAllStores, currentUser.AssignedStoreIds.ToArray(),
+            currentUser.CompanyId, request.StoreId, request.StaffId, currentUser.HasAccessToAllStores, currentUser.AssignedStoreIds.ToArray(),
         ];
 
         var totals = await databaseContext.Database.SqlQueryRaw<OutstandingTotalsRow>($$"""
@@ -94,7 +94,7 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
 
         var parameters = filterParameters.Concat(new object?[] { rowLimit + 1 }).ToArray();
         var rows = await databaseContext.Database.SqlQueryRaw<OutstandingRow>($$"""
-            select v.period_month as "PeriodMonth", v.store_id as "StoreId", s.name as "StoreName", v.employee_party_id as "EmployeePartyId",
+            select v.period_month as "PeriodMonth", v.store_id as "StoreId", s.name as "StoreName", v.staff_id as "StaffId",
                    v.employee_name as "EmployeeName", v.net_pay as "NetPay", v.paid_amount as "PaidAmount", v.outstanding_amount as "OutstandingAmount"
             {{SalaryOutstandingFromAndWhere}}
              order by v.period_month, s.name, v.employee_name
@@ -103,7 +103,7 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
 
         return new SalaryOutstandingReportResponse(
             rows.Take(rowLimit).Select(row => new SalaryOutstandingReportRowResponse(
-                row.PeriodMonth, row.StoreId, row.StoreName, row.EmployeePartyId, row.EmployeeName, row.NetPay, row.PaidAmount, row.OutstandingAmount)).ToList(),
+                row.PeriodMonth, row.StoreId, row.StoreName, row.StaffId, row.EmployeeName, row.NetPay, row.PaidAmount, row.OutstandingAmount)).ToList(),
             totals.TotalNetPay, totals.TotalPaid, totals.TotalOutstanding, totals.LineCount, rows.Count > rowLimit);
     }
 
@@ -124,7 +124,7 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
         public DateOnly PeriodMonth { get; set; }
         public Guid StoreId { get; set; }
         public string StoreName { get; set; } = "";
-        public Guid EmployeePartyId { get; set; }
+        public Guid StaffId { get; set; }
         public string EmployeeCode { get; set; } = "";
         public string EmployeeName { get; set; } = "";
         public string? Designation { get; set; }
@@ -151,7 +151,7 @@ public sealed class PayrollReportRepository(DatabaseSession databaseSession, ICu
         public DateOnly PeriodMonth { get; set; }
         public Guid StoreId { get; set; }
         public string StoreName { get; set; } = "";
-        public Guid EmployeePartyId { get; set; }
+        public Guid StaffId { get; set; }
         public string EmployeeName { get; set; } = "";
         public long NetPay { get; set; }
         public long PaidAmount { get; set; }

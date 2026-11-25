@@ -57,16 +57,16 @@ internal static class PermissionCatalogDefinitions
             .Screen("PRODUCT_REPORT", "Product Report", PermissionActionSets.Report)
             .Screen("PRICE_BANDS", "Price Bands", PermissionActionSets.Entry);
 
-        builder.Module("PARTY", "Party")
-            .Screen("NEW_PARTY", "New Party", PermissionActionSets.Entry)
-            .Screen("VIEW_PARTY", "View Party", PermissionActionSets.List)
-            .Screen("SEARCH_PARTY", "Search Party", PermissionActionSets.ViewOnly)
-            .Screen("ACCOUNT_DETAIL", "Account Detail", PermissionActionSets.List)
-            .Screen("PROMISE", "Promise", PermissionActionSets.Entry)
+        builder.Module("CUSTOMERS", "Customers")
+            .Screen("NEW_CUSTOMER", "New Customer", PermissionActionSets.Entry)
+            .Screen("VIEW_CUSTOMERS", "View Customers", PermissionActionSets.List)
+            .Screen("SEARCH_CUSTOMER", "Search Customer", PermissionActionSets.ViewOnly)
+            .Screen("CUSTOMER_ACCOUNT_DETAIL", "Customer Account Detail", PermissionActionSets.List)
+            .Screen("PROMISE", "Promise", PermissionActionSets.Entry);
+
+        builder.Module("CASH_MANAGEMENT", "Cash Management")
             .Screen("CASH_CALCULATOR", "Cash Calculator", PermissionActionSets.Entry)
-            .Screen("VIEW_CASH_DETAIL", "View Cash Detail", PermissionActionSets.List)
-            .Screen("NEW_SALARY_SHEET", "New Salary Sheet", PermissionActionSets.Entry)
-            .Screen("VIEW_SALARY_SHEET", "View Salary Sheet", PermissionActionSets.List);
+            .Screen("VIEW_CASH_DETAIL", "View Cash Detail", PermissionActionSets.List);
 
         builder.Module("INVOICE", "Invoice")
             .Screen("NEW_SALE", "New Sale", PermissionActionSets.Sales)
@@ -197,6 +197,10 @@ internal static class PermissionCatalogDefinitions
             .Screen("STOCK_EXCEPTIONS", "Stock Exceptions", PermissionActionSets.Approval);
 
         builder.Module("VENDORS", "Vendors")
+            .Screen("NEW_VENDOR", "New Vendor", PermissionActionSets.Entry)
+            .Screen("VIEW_VENDORS", "View Vendors", PermissionActionSets.List)
+            .Screen("SEARCH_VENDOR", "Search Vendor", PermissionActionSets.ViewOnly)
+            .Screen("VENDOR_ACCOUNT_DETAIL", "Vendor Account Detail", PermissionActionSets.List)
             .Screen("VENDOR_MANAGEMENT", "Vendor Management", PermissionActionSets.Entry)
             .Screen("VENDOR_PAYMENT_SCHEDULE", "Vendor Payment Schedule", PermissionActionSets.Entry)
             .Screen("VENDOR_PRODUCT_MAPPING", "Vendor Product Mapping", PermissionActionSets.Entry);
@@ -208,6 +212,12 @@ internal static class PermissionCatalogDefinitions
             .Screen("RECURRING_EXPENSES", "Recurring Expenses", PermissionActionSets.Entry);
 
         builder.Module("HUMAN_RESOURCES", "Human Resources")
+            .Screen("NEW_STAFF", "New Staff", PermissionActionSets.Entry)
+            .Screen("VIEW_STAFF", "View Staff", PermissionActionSets.List)
+            .Screen("SEARCH_STAFF", "Search Staff", PermissionActionSets.ViewOnly)
+            .Screen("STAFF_ACCOUNT_DETAIL", "Staff Account Detail", PermissionActionSets.List)
+            .Screen("NEW_SALARY_SHEET", "New Salary Sheet", PermissionActionSets.Entry)
+            .Screen("VIEW_SALARY_SHEET", "View Salary Sheet", PermissionActionSets.List)
             .Screen("STAFF_PROFILES", "Staff Profiles", PermissionActionSets.Entry)
             .Screen("STAFF_TRANSFERS", "Staff Transfers", PermissionActionSets.Document)
             .Screen("SALARY_TERMS", "Salary Terms", PermissionActionSets.Entry)

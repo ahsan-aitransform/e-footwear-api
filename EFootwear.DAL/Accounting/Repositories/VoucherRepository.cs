@@ -13,7 +13,7 @@ namespace EFootwear.DAL.Accounting.Repositories;
 /// <summary>
 /// Vouchers. Writes go through acct.post_voucher and acct.void_voucher (migration 0700), which post the journal entry and the voucher together
 /// and check the VOUCHER_POST / VOUCHER_DELETE permissions again inside the database. Reads are plain SQL over acct.vouchers, the journal and the
-/// parties; row-level security limits them to the caller's company and stores.
+/// customers, vendors and staff; row-level security limits them to the caller's company and stores.
 /// </summary>
 public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentUser currentUser) : IVoucherRepository
 {
@@ -27,34 +27,38 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
         ["status"] = "v.status",
     };
 
-    // Shared FROM and WHERE of the list, the count and the report. Parameters: 0 company, 1 type, 2 store, 3 from, 4 to, 5 status, 6 party,
-    // 7 search text (exact voucher number), 8 search pattern. Every optional filter is cast so PostgreSQL can type a null.
+    // Shared FROM and WHERE of the list, the count and the report. Parameters: 0 company, 1 type, 2 store, 3 from, 4 to, 5 status, 6 customer,
+    // 7 vendor, 8 staff, 9 search text (exact voucher number), 10 search pattern. Every optional filter is cast so PostgreSQL can type a null.
     private const string VoucherFilterFromAndWhere = """
         from acct.vouchers v
         join core.stores s on s.company_id = v.company_id and s.id = v.store_id
         join acct.accounts debit_account on debit_account.company_id = v.company_id and debit_account.id = v.debit_account_id
         join acct.accounts credit_account on credit_account.company_id = v.company_id and credit_account.id = v.credit_account_id
-        left join party.parties p on p.company_id = v.company_id and p.id = v.party_id
+        left join contacts.v_contact_directory p on p.company_id = v.company_id
+               and p.kind_code = (case when v.customer_id is not null then 'CUSTOMER' when v.vendor_id is not null then 'VENDOR' else 'STAFF' end)
+               and p.id = coalesce(v.customer_id, v.vendor_id, v.staff_id)
         where v.company_id = {0}
           and (cast({1} as text) is null or v.voucher_type = cast({1} as text))
           and (cast({2} as uuid) is null or v.store_id = cast({2} as uuid))
           and (cast({3} as date) is null or v.voucher_date >= cast({3} as date))
           and (cast({4} as date) is null or v.voucher_date <= cast({4} as date))
           and (cast({5} as text) is null or v.status = cast({5} as text))
-          and (cast({6} as uuid) is null or v.party_id = cast({6} as uuid))
-          and (cast({7} as text) is null
-               or v.voucher_no::text = cast({7} as text)
-               or v.ref_no ilike cast({8} as text) escape '\'
-               or v.description ilike cast({8} as text) escape '\'
-               or p.name ilike cast({8} as text) escape '\'
-               or debit_account.name ilike cast({8} as text) escape '\'
-               or credit_account.name ilike cast({8} as text) escape '\')
+          and (cast({6} as uuid) is null or v.customer_id = cast({6} as uuid))
+          and (cast({7} as uuid) is null or v.vendor_id = cast({7} as uuid))
+          and (cast({8} as uuid) is null or v.staff_id = cast({8} as uuid))
+          and (cast({9} as text) is null
+               or v.voucher_no::text = cast({9} as text)
+               or v.ref_no ilike cast({10} as text) escape '\'
+               or v.description ilike cast({10} as text) escape '\'
+               or p.name ilike cast({10} as text) escape '\'
+               or debit_account.name ilike cast({10} as text) escape '\'
+               or credit_account.name ilike cast({10} as text) escape '\')
         """;
 
     private const string VoucherListColumns = """
         v.id as "Id", v.store_id as "StoreId", s.name as "StoreName", v.voucher_type as "VoucherTypeCode", v.voucher_no as "VoucherNumber",
         v.voucher_date as "VoucherDate", v.amount as "Amount", debit_account.name as "DebitAccountTitle", credit_account.name as "CreditAccountTitle",
-        p.name as "PartyName", v.ref_no as "ReferenceNumber", v.description as "Description", v.status as "StatusCode"
+        p.name as "ContactName", v.ref_no as "ReferenceNumber", v.description as "Description", v.status as "StatusCode"
         """;
 
     public async Task<long> GetNextVoucherNumberAsync(Guid storeId, string voucherTypeCode, CancellationToken cancellationToken)
@@ -73,14 +77,16 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
+        var debitContact = request.DebitTarget.FindContact("To (debit)");
+        var creditContact = request.CreditTarget.FindContact("From (credit)");
         var allocationsJson = request.Allocations is { Count: > 0 } allocations
             ? JsonSerializer.Serialize(allocations.Select(allocation => new { invoiceId = allocation.InvoiceId, amount = allocation.Amount }))
             : null;
 
         return await databaseContext.Database.SqlQuery<Guid>($"""
             select acct.post_voucher({companyId}, {request.StoreId}, {voucherTypeCode}, {request.VoucherDate},
-                                     {request.DebitTarget.AccountId}, {request.DebitTarget.PartyId},
-                                     {request.CreditTarget.AccountId}, {request.CreditTarget.PartyId},
+                                     {request.DebitTarget.AccountId}, {debitContact?.KindCode}, {debitContact?.Id},
+                                     {request.CreditTarget.AccountId}, {creditContact?.KindCode}, {creditContact?.Id},
                                      {request.Amount}, {request.PaymentMode}, {request.ReferenceNumber}, {request.Description},
                                      {request.ClientTransactionId}, cast({allocationsJson} as jsonb)) as "Value"
             """).SingleAsync(cancellationToken);
@@ -93,24 +99,28 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
 
         var header = await databaseContext.Database.SqlQuery<VoucherHeaderRow>($"""
             select v.id as "Id", v.store_id as "StoreId", s.name as "StoreName", v.voucher_type as "VoucherTypeCode",
-                   v.voucher_no as "VoucherNumber", v.voucher_date as "VoucherDate", v.amount as "Amount", v.party_id as "PartyId",
-                   p.name as "PartyName", v.payment_mode as "PaymentMode", v.ref_no as "ReferenceNumber", v.description as "Description",
+                   v.voucher_no as "VoucherNumber", v.voucher_date as "VoucherDate", v.amount as "Amount", v.customer_id as "CustomerId",
+                   v.vendor_id as "VendorId", v.staff_id as "StaffId", p.name as "ContactName", v.payment_mode as "PaymentMode", v.ref_no as "ReferenceNumber", v.description as "Description",
                    v.status as "StatusCode", v.void_reason as "VoidReason", v.voided_at as "VoidedAt", v.created_at as "CreatedAt",
                    v.row_ver as "RowVersion", v.journal_entry_id as "JournalEntryId"
               from acct.vouchers v
               join core.stores s on s.company_id = v.company_id and s.id = v.store_id
-              left join party.parties p on p.company_id = v.company_id and p.id = v.party_id
+              left join contacts.v_contact_directory p on p.company_id = v.company_id
+               and p.kind_code = (case when v.customer_id is not null then 'CUSTOMER' when v.vendor_id is not null then 'VENDOR' else 'STAFF' end)
+               and p.id = coalesce(v.customer_id, v.vendor_id, v.staff_id)
              where v.company_id = {companyId} and v.id = {voucherId}
             """).SingleOrDefaultAsync(cancellationToken);
         if (header is null) return null;
 
         var lines = await databaseContext.Database.SqlQuery<VoucherLineRow>($"""
-            select a.code as "AccountCode", a.name as "AccountTitle", l.party_id as "PartyId", p.name as "PartyName",
+            select a.code as "AccountCode", a.name as "AccountTitle", l.customer_id as "CustomerId", l.vendor_id as "VendorId", l.staff_id as "StaffId", p.name as "ContactName",
                    l.debit as "DebitAmount", l.credit as "CreditAmount", coalesce(l.description, e.description) as "Description"
               from acct.journal_lines l
               join acct.journal_entries e on e.company_id = l.company_id and e.id = l.entry_id and e.entry_date = l.entry_date
               join acct.accounts a on a.company_id = l.company_id and a.id = l.account_id
-              left join party.parties p on p.company_id = l.company_id and p.id = l.party_id
+              left join contacts.v_contact_directory p on p.company_id = l.company_id
+                   and p.kind_code = (case when l.customer_id is not null then 'CUSTOMER' when l.vendor_id is not null then 'VENDOR' else 'STAFF' end)
+                   and p.id = coalesce(l.customer_id, l.vendor_id, l.staff_id)
              where l.company_id = {companyId} and l.entry_id = {header.JournalEntryId} and l.entry_date = {header.VoucherDate}
              order by l.line_no
             """).ToListAsync(cancellationToken);
@@ -129,9 +139,9 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
 
         return new VoucherResponse(
             header.Id, header.StoreId, header.StoreName, header.VoucherTypeCode, header.VoucherNumber, header.VoucherDate, header.Amount,
-            header.PartyId, header.PartyName, header.PaymentMode, header.ReferenceNumber, header.Description, header.StatusCode,
+            header.CustomerId, header.VendorId, header.StaffId, header.ContactName, header.PaymentMode, header.ReferenceNumber, header.Description, header.StatusCode,
             header.VoidReason, header.VoidedAt, header.CreatedAt, header.RowVersion,
-            lines.Select(line => new VoucherLineResponse(line.AccountCode, line.AccountTitle, line.PartyId, line.PartyName,
+            lines.Select(line => new VoucherLineResponse(line.AccountCode, line.AccountTitle, line.CustomerId, line.VendorId, line.StaffId, line.ContactName,
                                                          line.DebitAmount, line.CreditAmount, line.Description)).ToList(),
             allocations.Select(allocation => new VoucherAllocationResponse(allocation.InvoiceKindCode, allocation.InvoiceId,
                                                                            allocation.InvoiceNumber, allocation.Amount)).ToList());
@@ -166,7 +176,7 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
         var rows = await databaseContext.Database.SqlQueryRaw<VoucherListRow>($$"""
             select {{VoucherListColumns}} {{VoucherFilterFromAndWhere}}
              order by {{primaryOrder}}v.voucher_date desc, v.voucher_no desc, v.id
-             limit {9} offset {10}
+             limit {11} offset {12}
             """, parameters).ToListAsync(cancellationToken);
         return new PagedResult<VoucherListItemResponse>(rows.Select(ToListItem).ToList(), pageRequest.PageNumber, pageRequest.PageSize, totalCount);
     }
@@ -188,7 +198,7 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
         var rows = await databaseContext.Database.SqlQueryRaw<VoucherListRow>($$"""
             select {{VoucherListColumns}} {{VoucherFilterFromAndWhere}}
              order by v.voucher_date, v.voucher_no, v.id
-             limit {9}
+             limit {11}
             """, parameters).ToListAsync(cancellationToken);
 
         var isTruncated = rows.Count > rowLimit;
@@ -217,7 +227,7 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
     }
 
     public async Task<IReadOnlyList<VoucherTargetOptionResponse>> SearchTargetsAsync(
-        string kindCode, string? searchText, string? partyTypeCode, string? groupCode, int limit, CancellationToken cancellationToken)
+        string kindCode, string? searchText, string? groupCode, int limit, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
@@ -225,16 +235,16 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
 
         if (kindCode == VoucherTargetKindCodes.Account)
         {
-            // Accounts a voucher may post to: active, postable, not the party control account (parties are chosen as parties) and not the stock
+            // Accounts a voucher may post to: active, postable, not the subledger control account (customers, vendors and staff are chosen as such) and not the stock
             // accounts (stock is posted by stock documents). The same rules acct.resolve_voucher_side enforces.
             var accountRows = await databaseContext.Database.SqlQuery<TargetRow>($"""
-                select a.id as "AccountId", cast(null as uuid) as "PartyId", a.code as "Code", a.name as "Title",
+                select a.id as "AccountId", cast(null as uuid) as "CustomerId", cast(null as uuid) as "VendorId", cast(null as uuid) as "StaffId", a.code as "Code", a.name as "Title",
                        coalesce(g.name, 'Group ' || a.group_code) as "TypeTitle", cast(coalesce(b.balance, 0) as bigint) as "Balance"
                   from acct.accounts a
                   left join acct.account_groups g on g.company_id = a.company_id and g.group_code = a.group_code
                   left join (select account_id, sum(debit) - sum(credit) as balance
                                from acct.account_month_balances where company_id = {companyId} group by account_id) b on b.account_id = a.id
-                 where a.company_id = {companyId} and a.is_active and a.is_postable and not a.is_party_control
+                 where a.company_id = {companyId} and a.is_active and a.is_postable and not a.is_subledger_control
                    and coalesce(a.system_role, '') not in ('STOCK', 'TRANSIT')
                    and ({groupCode}::text is null or a.group_code = {groupCode})
                    and ({pattern}::text is null or a.code ilike {pattern} escape '\' or a.name ilike {pattern} escape '\')
@@ -244,37 +254,46 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
             return accountRows.Select(ToTargetOption(VoucherTargetKindCodes.Account)).ToList();
         }
 
-        var partyRows = await databaseContext.Database.SqlQuery<TargetRow>($"""
-            select cast(null as uuid) as "AccountId", p.id as "PartyId", p.code as "Code", p.name as "Title",
-                   case when p.is_customer then 'Customer' when p.is_vendor then 'Vendor' else 'Staff' end as "TypeTitle",
-                   cast(coalesce(pb.debit_total - pb.credit_total, 0) as bigint) as "Balance"
-              from party.parties p
-              left join party.party_balances pb on pb.company_id = p.company_id and pb.party_id = p.id
-             where p.company_id = {companyId} and not p.is_deleted and p.status = 'ACTIVE'
-               and ({partyTypeCode}::text is null
-                    or ({partyTypeCode} = 'CUSTOMER' and p.is_customer)
-                    or ({partyTypeCode} = 'VENDOR' and p.is_vendor)
-                    or ({partyTypeCode} = 'STAFF' and p.is_staff))
-               and ({pattern}::text is null or p.code ilike {pattern} escape '\' or p.name ilike {pattern} escape '\'
-                    or p.phone_primary ilike {pattern} escape '\')
+        // The table and the balance table are chosen from fixed names (never from user input), so they are safe to put into the SQL text.
+        var (contactTable, balanceTable, idColumn) = kindCode switch
+        {
+            VoucherTargetKindCodes.Customer => ("contacts.customers", "contacts.customer_balances", "customer_id"),
+            VoucherTargetKindCodes.Vendor => ("contacts.vendors", "contacts.vendor_balances", "vendor_id"),
+            _ => ("contacts.staff", "contacts.staff_balances", "staff_id"),
+        };
+        var typeTitle = kindCode == VoucherTargetKindCodes.Customer ? "Customer" : kindCode == VoucherTargetKindCodes.Vendor ? "Vendor" : "Staff";
+        var contactRows = await databaseContext.Database.SqlQueryRaw<ContactTargetRow>("""
+            select p.id as "ContactId", p.code as "Code", p.name as "Title", cast(coalesce(pb.debit_total - pb.credit_total, 0) as bigint) as "Balance"
+              from __CONTACT_TABLE__ p
+              left join __BALANCE_TABLE__ pb on pb.company_id = p.company_id and pb.__ID_COLUMN__ = p.id
+             where p.company_id = {0} and not p.is_deleted and p.status = 'ACTIVE'
+               and (cast({1} as text) is null or p.code ilike cast({1} as text) escape '\' or p.name ilike cast({1} as text) escape '\'
+                    or p.phone ilike cast({1} as text) escape '\')
              order by p.name
-             limit {limit}
-            """).ToListAsync(cancellationToken);
-        return partyRows.Select(ToTargetOption(VoucherTargetKindCodes.Party)).ToList();
+             limit {2}
+            """.Replace("__CONTACT_TABLE__", contactTable).Replace("__BALANCE_TABLE__", balanceTable).Replace("__ID_COLUMN__", idColumn),
+            companyId, (object?)pattern ?? DBNull.Value, limit).ToListAsync(cancellationToken);
+        return contactRows.Select(row => new VoucherTargetOptionResponse(
+            kindCode, null,
+            kindCode == VoucherTargetKindCodes.Customer ? row.ContactId : null,
+            kindCode == VoucherTargetKindCodes.Vendor ? row.ContactId : null,
+            kindCode == VoucherTargetKindCodes.Staff ? row.ContactId : null,
+            row.Code, row.Title, typeTitle, Math.Abs(row.Balance), BalanceSideCodes.SideOf(row.Balance))).ToList();
     }
 
     private object?[] BuildFilterParameters(VoucherSearchFilter filter, string? searchText) =>
     [
-        currentUser.CompanyId, filter.VoucherTypeCode, filter.StoreId, filter.FromDate, filter.ToDate, filter.StatusCode, filter.PartyId,
+        currentUser.CompanyId, filter.VoucherTypeCode, filter.StoreId, filter.FromDate, filter.ToDate, filter.StatusCode,
+        filter.CustomerId, filter.VendorId, filter.StaffId,
         searchText, searchText is null ? null : LikePattern.Contains(searchText),
     ];
 
     private static VoucherListItemResponse ToListItem(VoucherListRow row) =>
         new(row.Id, row.StoreId, row.StoreName, row.VoucherTypeCode, row.VoucherNumber, row.VoucherDate, row.Amount,
-            row.DebitAccountTitle, row.CreditAccountTitle, row.PartyName, row.ReferenceNumber, row.Description, row.StatusCode);
+            row.DebitAccountTitle, row.CreditAccountTitle, row.ContactName, row.ReferenceNumber, row.Description, row.StatusCode);
 
     private static Func<TargetRow, VoucherTargetOptionResponse> ToTargetOption(string kindCode) =>
-        row => new VoucherTargetOptionResponse(kindCode, row.AccountId, row.PartyId, row.Code, row.Title, row.TypeTitle,
+        row => new VoucherTargetOptionResponse(kindCode, row.AccountId, row.CustomerId, row.VendorId, row.StaffId, row.Code, row.Title, row.TypeTitle,
                                                Math.Abs(row.Balance), BalanceSideCodes.SideOf(row.Balance));
 
     private sealed class VoucherHeaderRow
@@ -286,8 +305,10 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
         public long VoucherNumber { get; set; }
         public DateOnly VoucherDate { get; set; }
         public long Amount { get; set; }
-        public Guid? PartyId { get; set; }
-        public string? PartyName { get; set; }
+        public Guid? CustomerId { get; set; }
+        public Guid? VendorId { get; set; }
+        public Guid? StaffId { get; set; }
+        public string? ContactName { get; set; }
         public string? PaymentMode { get; set; }
         public string? ReferenceNumber { get; set; }
         public string? Description { get; set; }
@@ -303,8 +324,10 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
     {
         public string AccountCode { get; set; } = "";
         public string AccountTitle { get; set; } = "";
-        public Guid? PartyId { get; set; }
-        public string? PartyName { get; set; }
+        public Guid? CustomerId { get; set; }
+        public Guid? VendorId { get; set; }
+        public Guid? StaffId { get; set; }
+        public string? ContactName { get; set; }
         public long DebitAmount { get; set; }
         public long CreditAmount { get; set; }
         public string? Description { get; set; }
@@ -329,7 +352,7 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
         public long Amount { get; set; }
         public string DebitAccountTitle { get; set; } = "";
         public string CreditAccountTitle { get; set; } = "";
-        public string? PartyName { get; set; }
+        public string? ContactName { get; set; }
         public string? ReferenceNumber { get; set; }
         public string? Description { get; set; }
         public string StatusCode { get; set; } = "";
@@ -342,10 +365,20 @@ public sealed class VoucherRepository(DatabaseSession databaseSession, ICurrentU
         public long TotalAmount { get; set; }
     }
 
+    private sealed class ContactTargetRow
+    {
+        public Guid ContactId { get; set; }
+        public string Code { get; set; } = "";
+        public string Title { get; set; } = "";
+        public long Balance { get; set; }
+    }
+
     private sealed class TargetRow
     {
         public Guid? AccountId { get; set; }
-        public Guid? PartyId { get; set; }
+        public Guid? CustomerId { get; set; }
+        public Guid? VendorId { get; set; }
+        public Guid? StaffId { get; set; }
         public string Code { get; set; } = "";
         public string Title { get; set; } = "";
         public string TypeTitle { get; set; } = "";

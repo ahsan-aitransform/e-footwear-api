@@ -4,7 +4,7 @@ using EFootwear.BLL.Sales.Contracts;
 namespace EFootwear.BLL.Sales.Abstractions;
 
 /// <summary>
-/// Reads of the Sales module: plain SQL over the sales tables, the catalogue and the parties. Row-level security limits every answer to the company and the
+/// Reads of the Sales module: plain SQL over the sales tables, the catalogue, the customers and the staff. Row-level security limits every answer to the company and the
 /// stores of the caller. Whole rupees everywhere; on a return the amounts are negative, as stored.
 /// </summary>
 public interface ISaleInvoiceReadRepository

@@ -1,4 +1,5 @@
 using EFootwear.BLL.Accounting.Contracts;
+using EFootwear.Domain.Contacts;
 
 namespace EFootwear.BLL.Accounting.Abstractions;
 
@@ -10,12 +11,12 @@ namespace EFootwear.BLL.Accounting.Abstractions;
 public interface IOpeningBalanceRepository
 {
     /// <summary>
-    /// The lines of the screen for a store: its accounts (not stock accounts, not the party control account), and for the head
-    /// office also every party, each with the opening balance in force.
+    /// The lines of the screen for a store: its accounts (not stock accounts, not the subledger control account), and for the head
+    /// office also every customer, vendor and staff member, each with the opening balance in force.
     /// </summary>
     Task<IReadOnlyList<OpeningBalanceRowResponse>> ListRowsAsync(Guid storeId, CancellationToken cancellationToken);
 
-    /// <summary>Posts or replaces one opening balance (zero amounts clear it). Exactly one of account / party is given.</summary>
-    Task PostAsync(Guid? accountId, Guid? partyId, Guid storeId, long debitAmount, long creditAmount, DateOnly entryDate,
+    /// <summary>Posts or replaces one opening balance (zero amounts clear it). Exactly one of account / contact (customer, vendor or staff member) is given.</summary>
+    Task PostAsync(Guid? accountId, ContactReference? contact, Guid storeId, long debitAmount, long creditAmount, DateOnly entryDate,
                    CancellationToken cancellationToken);
 }

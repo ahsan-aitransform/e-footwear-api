@@ -38,7 +38,7 @@ public class ChartOfAccountsApiTests(ApiTestEnvironment environment)
         var titles = groups.ToDictionary(group => group.GetProperty("groupCode").GetString()!, group => group.GetProperty("name").GetString()!);
         Assert.Equal("Cash", titles["101"]);
         Assert.Equal("Bank", titles["102"]);
-        Assert.Equal("Party control", titles["103"]);
+        Assert.Equal("Subledger control", titles["103"]);
         Assert.Equal("Opening balance equity", titles["302"]);
 
         var assets = await ListGroupsAsync(scenario.OwnerClient, "ASSET");
@@ -172,7 +172,7 @@ public class ChartOfAccountsApiTests(ApiTestEnvironment environment)
         {
             storeId = Guid.Empty,
             entryDate = "2026-01-01",
-            lines = new[] { new { accountId = (Guid?)accountId, partyId = (Guid?)null, debitAmount = 500L, creditAmount = 0L } },
+            lines = new[] { new { accountId = (Guid?)accountId, debitAmount = 500L, creditAmount = 0L } },
         });
         await TestScenarioBuilder.EnsureSuccessAsync(save);
 

@@ -1,11 +1,12 @@
 using EFootwear.Domain.Common;
+using EFootwear.Domain.Contacts;
 
 namespace EFootwear.Domain.Accounting;
 
 /// <summary>Limits and filter codes shared by the account reports (docx 8.1 to 8.4, 8.28) and the dropdowns that feed them.</summary>
 public static class AccountReportRules
 {
-    /// <summary>How many choices a searchable account or party dropdown returns at most.</summary>
+    /// <summary>How many choices a searchable account or contact dropdown returns at most.</summary>
     public const int LookupResultLimit = 50;
 
     /// <summary>"From the beginning": the trial balance and account balance add every journal line up to the chosen date.</summary>
@@ -13,18 +14,11 @@ public static class AccountReportRules
 
     public const string MainTypeFilterPrefix = "MAIN_TYPE:";
     public const string GroupFilterPrefix = "GROUP:";
-    public const string PartiesFilterPrefix = "PARTIES:";
-
-    public const string PartyTypeCustomer = "CUSTOMER";
-    public const string PartyTypeVendor = "VENDOR";
-    public const string PartyTypeStaff = "STAFF";
+    public const string ContactsFilterPrefix = "CONTACTS:";
 
     public const int TypeCodeMaximumLength = 40;
 
-    public static bool IsValidPartyType(string? partyTypeCode) =>
-        partyTypeCode is PartyTypeCustomer or PartyTypeVendor or PartyTypeStaff;
-
-    /// <summary>Checks the Account Type filter of the Account Balance report: MAIN_TYPE:&lt;code&gt;, GROUP:&lt;3 digits&gt; or PARTIES:&lt;party type&gt;.</summary>
+    /// <summary>Checks the Account Type filter of the Account Balance report: MAIN_TYPE:&lt;code&gt;, GROUP:&lt;3 digits&gt; or CONTACTS:&lt;CUSTOMER, VENDOR or STAFF&gt;.</summary>
     public static void EnsureAccountTypeFilterIsValid(string? filterCode)
     {
         if (string.IsNullOrWhiteSpace(filterCode))
@@ -42,7 +36,7 @@ public static class AccountReportRules
                 throw new DomainException(ErrorKind.Validation, "That account group does not exist.");
             return;
         }
-        if (filterCode.StartsWith(PartiesFilterPrefix, StringComparison.Ordinal) && IsValidPartyType(filterCode[PartiesFilterPrefix.Length..]))
+        if (filterCode.StartsWith(ContactsFilterPrefix, StringComparison.Ordinal) && ContactKindCodes.IsValid(filterCode[ContactsFilterPrefix.Length..]))
             return;
         throw new DomainException(ErrorKind.Validation, "That account type is not valid.");
     }

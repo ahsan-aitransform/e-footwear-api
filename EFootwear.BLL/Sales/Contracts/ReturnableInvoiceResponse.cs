@@ -6,7 +6,7 @@ public sealed record ReturnableInvoiceResponse(
     long InvoiceNumber,
     Guid StoreId,
     DateOnly SaleDate,
-    Guid? CustomerPartyId,
+    Guid? CustomerId,
     string? CustomerName,
     string? WalkInCustomerName,
     IReadOnlyList<ReturnableSaleLineResponse> Lines);

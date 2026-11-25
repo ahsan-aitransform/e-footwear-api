@@ -4,7 +4,7 @@ namespace EFootwear.BLL.Payroll.Contracts;
 public sealed record SalaryPaymentResponse(
     Guid Id,
     Guid PayrollLineId,
-    Guid EmployeePartyId,
+    Guid StaffId,
     string EmployeeName,
     Guid StoreId,
     string StoreName,

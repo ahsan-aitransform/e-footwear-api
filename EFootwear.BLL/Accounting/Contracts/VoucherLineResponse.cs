@@ -4,8 +4,10 @@ namespace EFootwear.BLL.Accounting.Contracts;
 public sealed record VoucherLineResponse(
     string AccountCode,
     string AccountTitle,
-    Guid? PartyId,
-    string? PartyName,
+    Guid? CustomerId,
+    Guid? VendorId,
+    Guid? StaffId,
+    string? ContactName,
     long DebitAmount,
     long CreditAmount,
     string? Description);

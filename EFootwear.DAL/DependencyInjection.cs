@@ -23,12 +23,21 @@ using EFootwear.BLL.CashManagement.Abstractions;
 using EFootwear.BLL.CashManagement.Services;
 using EFootwear.BLL.MasterData.Abstractions;
 using EFootwear.BLL.MasterData.Services;
-using EFootwear.BLL.Parties.Abstractions;
-using EFootwear.BLL.Parties.Services;
+using EFootwear.BLL.Contacts.Abstractions;
+using EFootwear.BLL.Contacts.Services;
+using EFootwear.BLL.Customers.Abstractions;
+using EFootwear.BLL.Customers.Services;
+using EFootwear.BLL.Staff.Abstractions;
+using EFootwear.BLL.Staff.Services;
+using EFootwear.BLL.Vendors.Abstractions;
+using EFootwear.BLL.Vendors.Services;
 using EFootwear.DAL.Accounting.Repositories;
 using EFootwear.DAL.CashManagement.Repositories;
 using EFootwear.DAL.MasterData.Repositories;
-using EFootwear.DAL.Parties.Repositories;
+using EFootwear.DAL.Contacts.Repositories;
+using EFootwear.DAL.Customers.Repositories;
+using EFootwear.DAL.Staff.Repositories;
+using EFootwear.DAL.Vendors.Repositories;
 using EFootwear.BLL.HumanResources.Abstractions;
 using EFootwear.BLL.HumanResources.Services;
 using EFootwear.BLL.Payroll.Abstractions;
@@ -164,13 +173,22 @@ public static class DependencyInjection
         services.AddScoped<SizeService>();
         // <module-registrations:master-data:end>
 
-        // --- Parties ---
-        services.AddScoped<IPartyRepository, PartyRepository>();
-        services.AddScoped<PartyService>();
+        // --- Contacts: customers, vendors and staff ---
+        services.AddScoped<IContactCodeGenerator, ContactCodeGenerator>();
+        services.AddScoped<IContactLedgerRepository, ContactLedgerRepository>();
+        services.AddScoped<ContactFieldValidator>();
+        services.AddScoped<ContactOpeningBalanceApplier>();
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<CustomerService>();
+        services.AddScoped<CustomerLedgerService>();
+        services.AddScoped<IVendorRepository, VendorRepository>();
+        services.AddScoped<VendorService>();
+        services.AddScoped<VendorLedgerService>();
+        services.AddScoped<IStaffMemberRepository, StaffMemberRepository>();
+        services.AddScoped<StaffMemberService>();
         services.AddScoped<StaffTransferService>();
-        services.AddScoped<IPartyLedgerRepository, PartyLedgerRepository>();
-        services.AddScoped<PartyLedgerService>();
-        // <module-registrations:parties:end>
+        services.AddScoped<StaffLedgerService>();
+        // <module-registrations:contacts:end>
 
         // --- Catalogue ---
         services.AddScoped<IProductRepository, ProductRepository>();

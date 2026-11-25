@@ -1,8 +1,8 @@
 namespace EFootwear.BLL.HumanResources.Contracts;
 
-/// <summary>One staff member as the staff list and the staff page show it: the party plus the job details of <c>party.staff_profiles</c>. Money is whole rupees.</summary>
+/// <summary>One staff member as the staff list and the staff page show it: the person plus the job details of <c>contacts.staff</c>. Money is whole rupees.</summary>
 public sealed record StaffListItemResponse(
-    Guid PartyId,
+    Guid StaffId,
     string Code,
     string Name,
     string? Designation,
@@ -13,4 +13,4 @@ public sealed record StaffListItemResponse(
     string PayFrequencyCode,
     DateOnly? JoinedOn,
     DateOnly? LeftOn,
-    string PartyStatusCode);
+    string StatusCode);

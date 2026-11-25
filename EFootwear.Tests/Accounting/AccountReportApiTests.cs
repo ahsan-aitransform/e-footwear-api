@@ -5,7 +5,7 @@ using EFootwear.Domain.Security;
 using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using EFootwear.Tests.Parties;
+using EFootwear.Tests.Contacts;
 using static EFootwear.Tests.Accounting.VoucherTestHelpers;
 
 namespace EFootwear.Tests.Accounting;
@@ -29,12 +29,12 @@ public class AccountReportApiTests(ApiTestEnvironment environment)
     private async Task<(OwnerCompanyScenario Scenario, Guid VendorId, Guid CustomerId, Guid CashAccountId)> CreateBusyCompanyAsync()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Report Vendor", isCustomer: false, isVendor: true);
-        var customerId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Report Customer");
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Report Vendor");
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Report Customer");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 10_000, voucherDate: "2026-10-15", description: "October payment"));
-        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 60_000, description: "November payment"));
-        await PostVoucherAsync(scenario.OwnerClient, ReceiptUrl, VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), PartyTarget(customerId), 25_000, description: "Customer receipt"));
+        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 10_000, voucherDate: "2026-10-15", description: "October payment"));
+        await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 60_000, description: "November payment"));
+        await PostVoucherAsync(scenario.OwnerClient, ReceiptUrl, VoucherBody(scenario.FirstStoreId, AccountTarget(cashAccountId), CustomerTarget(customerId), 25_000, description: "Customer receipt"));
         return (scenario, vendorId, customerId, cashAccountId);
     }
 
@@ -112,7 +112,7 @@ public class AccountReportApiTests(ApiTestEnvironment environment)
     }
 
     [Fact]
-    public async Task The_account_balance_report_filters_by_type_and_by_amount_type_and_lists_party_balances()
+    public async Task The_account_balance_report_filters_by_type_and_by_amount_type_and_lists_vendor_balances()
     {
         var (scenario, vendorId, _, _) = await CreateBusyCompanyAsync();
 
@@ -124,13 +124,13 @@ public class AccountReportApiTests(ApiTestEnvironment environment)
         var debitOnly = await GetAsync(scenario.OwnerClient, $"{ApiRoutes.AccountReports.Balances}?asOfDate=2026-11-30&accountTypeFilter=MAIN_TYPE:ASSET&amountTypeFilter=DEBIT");
         Assert.DoesNotContain(debitOnly.GetProperty("rows").EnumerateArray(), row => row.GetProperty("code").GetString() == "CASH-S1");
 
-        var vendors = await GetAsync(scenario.OwnerClient, $"{ApiRoutes.AccountReports.Balances}?asOfDate=2026-11-30&accountTypeFilter=PARTIES:VENDOR");
+        var vendors = await GetAsync(scenario.OwnerClient, $"{ApiRoutes.AccountReports.Balances}?asOfDate=2026-11-30&accountTypeFilter=CONTACTS:VENDOR");
         var vendorRow = vendors.GetProperty("rows").EnumerateArray().Single();
-        Assert.Equal(vendorId, vendorRow.GetProperty("partyId").GetGuid());
+        Assert.Equal(vendorId, vendorRow.GetProperty("vendorId").GetGuid());
         Assert.Equal(70_000, vendorRow.GetProperty("debitAmount").GetInt64());
         Assert.Equal(70_000, vendors.GetProperty("totalDebitAmount").GetInt64());
 
-        var vendorsInOctober = await GetAsync(scenario.OwnerClient, $"{ApiRoutes.AccountReports.Balances}?asOfDate=2026-10-31&accountTypeFilter=PARTIES:VENDOR");
+        var vendorsInOctober = await GetAsync(scenario.OwnerClient, $"{ApiRoutes.AccountReports.Balances}?asOfDate=2026-10-31&accountTypeFilter=CONTACTS:VENDOR");
         Assert.Equal(10_000, vendorsInOctober.GetProperty("totalDebitAmount").GetInt64());
 
         Assert.Equal(HttpStatusCode.BadRequest, (await scenario.OwnerClient.GetAsync($"{ReportsUrl}/{ApiRoutes.AccountReports.Balances}?asOfDate=2026-11-30&accountTypeFilter=NOPE")).StatusCode);
@@ -140,7 +140,7 @@ public class AccountReportApiTests(ApiTestEnvironment environment)
         var filterCodes = types.EnumerateArray().Select(option => option.GetProperty("filterCode").GetString()!).ToList();
         Assert.Contains("MAIN_TYPE:ASSET", filterCodes);
         Assert.Contains("GROUP:103", filterCodes);
-        Assert.Contains("PARTIES:CUSTOMER", filterCodes);
+        Assert.Contains("CONTACTS:CUSTOMER", filterCodes);
     }
 
     [Fact]
@@ -172,9 +172,9 @@ public class AccountReportApiTests(ApiTestEnvironment environment)
     public async Task A_voided_voucher_shows_in_the_general_journal_as_its_reversal_with_the_voucher_number()
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
-        var vendorId = await PartyTestHelpers.CreatePartyAsync(scenario.OwnerClient, "Vendor Void Journal", isCustomer: false, isVendor: true);
+        var vendorId = await ContactTestHelpers.CreateVendorAsync(scenario.OwnerClient, "Vendor Void Journal");
         var cashAccountId = await FirstStoreCashAccountIdAsync(environment, scenario.CompanyId);
-        var voucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, PartyTarget(vendorId), AccountTarget(cashAccountId), 3_000));
+        var voucher = await PostVoucherAsync(scenario.OwnerClient, PaymentUrl, VoucherBody(scenario.FirstStoreId, VendorTarget(vendorId), AccountTarget(cashAccountId), 3_000));
         await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, $"{VouchersUrl}/{voucher.GetProperty("id").GetGuid()}/void", new { reason = "Mistake" });
 
         // the reversal is dated by the database's current date, which can be a day ahead of UTC late in the evening

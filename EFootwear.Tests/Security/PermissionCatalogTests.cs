@@ -76,7 +76,7 @@ public partial class PermissionCatalogTests
     public void The_original_menu_tree_is_present_with_one_name_per_screen()
     {
         var moduleCodes = PermissionCatalog.Modules.Select(module => module.ModuleCode).ToList();
-        foreach (var moduleCode in new[] { "USER_ACCOUNT", "PRODUCTS", "PARTY", "INVOICE", "ORDERS", "VOUCHER", "REPORTS", "SETTINGS" })
+        foreach (var moduleCode in new[] { "USER_ACCOUNT", "PRODUCTS", "CUSTOMERS", "CASH_MANAGEMENT", "INVOICE", "ORDERS", "VOUCHER", "REPORTS", "SETTINGS" })
             Assert.Contains(moduleCode, moduleCodes);
 
         var reports = PermissionCatalog.Modules.Single(module => module.ModuleCode == "REPORTS");

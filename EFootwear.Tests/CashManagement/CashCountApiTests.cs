@@ -7,7 +7,7 @@ using EFootwear.Domain.Security;
 using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
-using static EFootwear.Tests.Parties.PartyTestHelpers;
+using static EFootwear.Tests.Contacts.ContactTestHelpers;
 
 namespace EFootwear.Tests.CashManagement;
 
@@ -173,7 +173,7 @@ public class CashCountApiTests(ApiTestEnvironment environment)
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
         var body = CountBody(scenario.FirstStoreId, "2026-11-20", 0, [Denomination(500, 2)]);
 
-        var screenOnly = await scenario.SignInManagerWithPermissionsAsync(PermissionCodes.Party.CashCalculator.View, PermissionCodes.Party.CashCalculator.Add);
+        var screenOnly = await scenario.SignInManagerWithPermissionsAsync(PermissionCodes.CashManagement.CashCalculator.View, PermissionCodes.CashManagement.CashCalculator.Add);
         var denied = await screenOnly.PutAsJsonAsync(CashCountsUrl, body);
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
         Assert.Equal(ErrorCodes.PermissionDenied, (await OwnerCompanyScenario.ReadJsonAsync(denied)).GetProperty("errorCode").GetString());
@@ -182,7 +182,7 @@ public class CashCountApiTests(ApiTestEnvironment environment)
         Assert.Equal(HttpStatusCode.Forbidden, (await restrictedOnly.PutAsJsonAsync(CashCountsUrl, body)).StatusCode);
 
         var allowed = await scenario.SignInManagerWithPermissionsAsync(
-            PermissionCodes.Party.CashCalculator.Add, PermissionCodes.RestrictedOperations.Accounting.CashCount);
+            PermissionCodes.CashManagement.CashCalculator.Add, PermissionCodes.RestrictedOperations.Accounting.CashCount);
         Assert.Equal(HttpStatusCode.OK, (await allowed.PutAsJsonAsync(CashCountsUrl, body)).StatusCode);
     }
 
@@ -198,7 +198,7 @@ public class CashCountApiTests(ApiTestEnvironment environment)
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.GetAsync($"{ContextUrl}?storeId={scenario.FirstStoreId}&countDate=2026-11-20")).StatusCode);
 
         var manager = await scenario.SignInManagerWithPermissionsAsync(
-            PermissionCodes.Party.ViewCashDetail.View, PermissionCodes.Party.CashCalculator.View, PermissionCodes.Party.CashCalculator.Add,
+            PermissionCodes.CashManagement.ViewCashDetail.View, PermissionCodes.CashManagement.CashCalculator.View, PermissionCodes.CashManagement.CashCalculator.Add,
             PermissionCodes.RestrictedOperations.Accounting.CashCount);
         Assert.Equal(0, (await OwnerCompanyScenario.ReadJsonAsync(await manager.GetAsync(CashCountsUrl))).GetProperty("totalCount").GetInt32());   // the other store's count is hidden
         Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync($"{CashCountsUrl}?storeId={secondStoreId}")).StatusCode);

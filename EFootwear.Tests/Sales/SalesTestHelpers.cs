@@ -48,14 +48,14 @@ public static class SalesTestHelpers
 
     public static object SaleBody(
         Guid storeId, IReadOnlyList<object> lines, IReadOnlyList<object> payments, long cashReturned = 0, Guid? clientTransactionId = null,
-        Guid? customerPartyId = null, string? description = null) =>
+        Guid? customerId = null, string? description = null) =>
         new
         {
             storeId,
             saleDate = TestSaleDate,
             clientTransactionId = clientTransactionId ?? Guid.NewGuid(),
-            customerPartyId,
-            salesmanPartyId = (Guid?)null,
+            customerId,
+            salesmanStaffId = (Guid?)null,
             walkInCustomerName = (string?)null,
             walkInCustomerMobile = (string?)null,
             posTerminalDeviceId = (Guid?)null,
@@ -68,19 +68,19 @@ public static class SalesTestHelpers
     public static object ReturnedLine(Guid originalLineId, decimal quantity, string? reason = "Does not fit", string? condition = "SELLABLE") =>
         new { originalLineId, quantity, reasonText = reason, itemConditionCode = condition };
 
-    public static object ReturnBody(Guid storeId, IReadOnlyList<object> lines, Guid? clientTransactionId = null, Guid? customerPartyId = null) =>
-        new { storeId, returnDate = TestSaleDate, clientTransactionId = clientTransactionId ?? Guid.NewGuid(), customerPartyId, description = (string?)null, lines };
+    public static object ReturnBody(Guid storeId, IReadOnlyList<object> lines, Guid? clientTransactionId = null, Guid? customerId = null) =>
+        new { storeId, returnDate = TestSaleDate, clientTransactionId = clientTransactionId ?? Guid.NewGuid(), customerId, description = (string?)null, lines };
 
     public static object ExchangeBody(
         Guid storeId, IReadOnlyList<object> returnedLines, IReadOnlyList<object> newSaleLines, IReadOnlyList<object> payments, long cashReturned = 0,
-        Guid? customerPartyId = null) =>
+        Guid? customerId = null) =>
         new
         {
             storeId,
             exchangeDate = TestSaleDate,
             clientTransactionId = Guid.NewGuid(),
-            customerPartyId,
-            salesmanPartyId = (Guid?)null,
+            customerId,
+            salesmanStaffId = (Guid?)null,
             walkInCustomerName = (string?)null,
             walkInCustomerMobile = (string?)null,
             posTerminalDeviceId = (Guid?)null,

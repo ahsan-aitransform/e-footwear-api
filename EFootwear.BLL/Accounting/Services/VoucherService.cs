@@ -36,9 +36,9 @@ public sealed class VoucherService(
         VoucherRules.EnsureAmountIsValid(request.Amount);
         EnsureTargetIsWellFormed(request.DebitTarget, "To (debit)");
         EnsureTargetIsWellFormed(request.CreditTarget, "From (credit)");
-        if (request.DebitTarget.PartyId.HasValue && request.CreditTarget.PartyId.HasValue)
+        if (request.DebitTarget.NamesContact && request.CreditTarget.NamesContact)
             throw new DomainException(ErrorKind.Validation,
-                "Two parties cannot be posted against each other: use an account (for example a cash or bank account) in between.");
+                "Two customers, vendors or staff members cannot be posted against each other: use an account (for example a cash or bank account) in between.");
         if (request.PaymentMode is not null && !VoucherPaymentModeCodes.IsValid(request.PaymentMode))
             throw new DomainException(ErrorKind.Validation, "The payment type is not valid.");
         EnsureAllocationsAreWellFormed(voucherTypeCode, request);
@@ -120,14 +120,12 @@ public sealed class VoucherService(
     }
 
     public Task<IReadOnlyList<VoucherTargetOptionResponse>> SearchTargetsAsync(
-        string kindCode, string? searchText, string? partyTypeCode, string? groupCode, CancellationToken cancellationToken)
+        string kindCode, string? searchText, string? groupCode, CancellationToken cancellationToken)
     {
-        if (kindCode is not (VoucherTargetKindCodes.Account or VoucherTargetKindCodes.Party))
-            throw new DomainException(ErrorKind.Validation, "Choose accounts or parties.");
-        if (partyTypeCode is not null && !AccountReportRules.IsValidPartyType(partyTypeCode))
-            throw new DomainException(ErrorKind.Validation, "That party type does not exist.");
+        if (!VoucherTargetKindCodes.IsValid(kindCode))
+            throw new DomainException(ErrorKind.Validation, "Choose accounts, customers, vendors or staff.");
         var cleanedSearchText = string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim();
-        return voucherRepository.SearchTargetsAsync(kindCode, cleanedSearchText, partyTypeCode, groupCode, AccountReportRules.LookupResultLimit, cancellationToken);
+        return voucherRepository.SearchTargetsAsync(kindCode, cleanedSearchText, groupCode, AccountReportRules.LookupResultLimit, cancellationToken);
     }
 
     private static void EnsureVoucherTypeIsValid(string voucherTypeCode)
@@ -155,9 +153,10 @@ public sealed class VoucherService(
 
     private static void EnsureTargetIsWellFormed(VoucherTargetRequest target, string sideTitle)
     {
-        if (target.AccountId.HasValue == target.PartyId.HasValue)
-            throw new DomainException(ErrorKind.Validation, $"Choose one account or one party for {sideTitle}.");
-        if (target.AccountId == Guid.Empty || target.PartyId == Guid.Empty)
+        var namedCount = new[] { target.AccountId.HasValue, target.CustomerId.HasValue, target.VendorId.HasValue, target.StaffId.HasValue }.Count(isNamed => isNamed);
+        if (namedCount != 1)
+            throw new DomainException(ErrorKind.Validation, $"Choose one account, customer, vendor or staff member for {sideTitle}.");
+        if (target.AccountId == Guid.Empty || target.CustomerId == Guid.Empty || target.VendorId == Guid.Empty || target.StaffId == Guid.Empty)
             throw new DomainException(ErrorKind.Validation, $"The choice for {sideTitle} is not valid.");
     }
 
@@ -167,8 +166,8 @@ public sealed class VoucherService(
         if (!VoucherTypeCodes.CanSettleInvoices(voucherTypeCode))
             throw new DomainException(ErrorKind.Validation, "Only a payment to a vendor or a receipt from a customer can settle invoices.");
 
-        var settledParty = voucherTypeCode == VoucherTypeCodes.Payment ? request.DebitTarget.PartyId : request.CreditTarget.PartyId;
-        if (settledParty is null)
+        var settledContact = voucherTypeCode == VoucherTypeCodes.Payment ? request.DebitTarget.VendorId : request.CreditTarget.CustomerId;
+        if (settledContact is null)
             throw new DomainException(ErrorKind.Validation,
                 voucherTypeCode == VoucherTypeCodes.Payment
                     ? "Choose the vendor in the To box to settle purchase invoices."

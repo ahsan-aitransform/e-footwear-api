@@ -6,7 +6,7 @@ namespace EFootwear.BLL.Payroll.Contracts;
 /// </summary>
 public sealed record PayrollSheetLineResponse(
     Guid LineId,
-    Guid EmployeePartyId,
+    Guid StaffId,
     string EmployeeCode,
     string EmployeeName,
     string? Designation,
