@@ -399,6 +399,22 @@ public static class ApiRoutes
         public const string SalaryOutstandingReport = "reports/salary-outstanding";
     }
 
+    /// <summary>Commission plans, commission entries with their approval, and the commission reports (Part 16.2). Payment of commission is the salary payment of <see cref="Payroll"/>.</summary>
+    public static class Commissions
+    {
+        public const string Root = VersionPrefix + "/commissions";
+        public const string Plans = "plans";
+        public const string PlanById = "plans/{planId:guid}";
+        public const string PlanRules = "plans/{planId:guid}/rules";
+        public const string EndPlanRule = "plans/{planId:guid}/rules/{ruleId:guid}/end";
+        public const string Entries = "entries";
+        public const string EntryTotals = "entries/totals";
+        public const string ApproveEntries = "entries/approve";
+        public const string CommissionReportSummary = "reports/commission/summary";
+        public const string CommissionReportDetail = "reports/commission/detail";
+        public const string AccrualAndPaymentReport = "reports/accrual-and-payment";
+    }
+
     /// <summary>New Sale, Sale Return, Exchange Invoice, View Invoices and View Deleted Invoices (docx 5.1 to 5.3, 5.13; Parts 11 and 12). Every screen has its own routes because the screens are granted separately.</summary>
     public static class Sales
     {

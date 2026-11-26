@@ -40,9 +40,12 @@ using EFootwear.DAL.Staff.Repositories;
 using EFootwear.DAL.Vendors.Repositories;
 using EFootwear.BLL.HumanResources.Abstractions;
 using EFootwear.BLL.HumanResources.Services;
+using EFootwear.BLL.Commissions.Abstractions;
+using EFootwear.BLL.Commissions.Services;
 using EFootwear.BLL.Payroll.Abstractions;
 using EFootwear.BLL.Payroll.Services;
 using EFootwear.DAL.HumanResources.Repositories;
+using EFootwear.DAL.Commissions.Repositories;
 using EFootwear.DAL.Payroll.Repositories;
 using EFootwear.BLL.Inventory.Abstractions;
 using EFootwear.BLL.Inventory.Services;
@@ -275,6 +278,12 @@ public static class DependencyInjection
         // <module-registrations:payroll:end>
 
         // --- Commissions ---
+        services.AddScoped<ICommissionPlanRepository, CommissionPlanRepository>();
+        services.AddScoped<CommissionPlanService>();
+        services.AddScoped<ICommissionEntryRepository, CommissionEntryRepository>();
+        services.AddScoped<CommissionEntryService>();
+        services.AddScoped<ICommissionReportRepository, CommissionReportRepository>();
+        services.AddScoped<CommissionReportService>();
         // <module-registrations:commissions:end>
 
         // --- Expenses ---
