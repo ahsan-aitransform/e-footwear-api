@@ -16,4 +16,6 @@ public sealed record CustomerDetailResponse(
     DateTimeOffset CreatedAt,
     long BalanceAmount,
     ContactOpeningBalanceResponse? OpeningBalance,
-    long RowVersion);
+    long RowVersion,
+    string? Cnic,
+    string CustomerTypeCode);

@@ -14,4 +14,6 @@ public sealed record CustomerListItemResponse(
     string? CityName,
     string StatusCode,
     long BalanceAmount,
-    long RowVersion);
+    long RowVersion,
+    string? Cnic,
+    string CustomerTypeCode);

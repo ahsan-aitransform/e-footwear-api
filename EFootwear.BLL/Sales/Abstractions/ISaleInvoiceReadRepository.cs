@@ -27,6 +27,9 @@ public interface ISaleInvoiceReadRepository
 
     Task<IReadOnlyList<SaleCustomerLookupResponse>> SearchCustomersAsync(string? searchText, int limit, CancellationToken cancellationToken);
 
+    /// <summary>The posted invoices (sales and returns) of one customer with their items, newest first.</summary>
+    Task<PagedResult<SaleCustomerPurchaseResponse>> ListCustomerPurchasesAsync(Guid customerId, PageRequest pageRequest, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<SaleSalesmanLookupResponse>> ListSalesmenAsync(Guid storeId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<SalePaymentAccountResponse>> ListPaymentAccountsAsync(CancellationToken cancellationToken);

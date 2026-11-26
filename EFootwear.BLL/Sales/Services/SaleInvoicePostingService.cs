@@ -1,5 +1,6 @@
 using EFootwear.BLL.Abstractions;
 using EFootwear.BLL.Core.Services;
+using EFootwear.BLL.Customers.Services;
 using EFootwear.BLL.Sales.Abstractions;
 using EFootwear.BLL.Sales.Contracts;
 using EFootwear.Domain.Common;
@@ -18,13 +19,14 @@ public sealed class SaleInvoicePostingService(
     ISaleInvoicePostingRepository postingRepository,
     ISaleInvoiceReadRepository readRepository,
     CompanySettingsService companySettingsService,
+    CustomerService customerService,
     ICurrentUser currentUser,
     IUnitOfWork unitOfWork,
     ILogger<SaleInvoicePostingService> logger)
 {
     public async Task<SaleInvoiceResponse> CreateSaleAsync(CreateSaleInvoiceRequest request, CancellationToken cancellationToken)
     {
-        var cleanedRequest = await ValidateAndCleanSaleAsync(request, cancellationToken);
+        var cleanedRequest = await SaveTypedCustomerAsync(await ValidateAndCleanSaleAsync(request, cancellationToken), cancellationToken);
         var invoiceId = await postingRepository.PostSaleAsync(cleanedRequest, replacedInvoiceId: null, replaceReason: null, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
 
@@ -117,7 +119,7 @@ public sealed class SaleInvoicePostingService(
         if (request.CorrectedSale.StoreId != original.StoreId)
             throw new DomainException(ErrorKind.Validation, "The corrected sale must be made in the same store as the invoice it replaces.");
 
-        var cleanedSale = await ValidateAndCleanSaleAsync(request.CorrectedSale, cancellationToken);
+        var cleanedSale = await SaveTypedCustomerAsync(await ValidateAndCleanSaleAsync(request.CorrectedSale, cancellationToken), cancellationToken);
         var newInvoiceId = await postingRepository.PostSaleAsync(cleanedSale, invoiceId, reason, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
 
@@ -140,6 +142,18 @@ public sealed class SaleInvoicePostingService(
             WalkInCustomerName = SaleRules.CleanOptionalText(request.WalkInCustomerName, SaleRules.WalkInNameMaximumLength, "The customer name"),
             WalkInCustomerMobile = SaleRules.CleanOptionalText(request.WalkInCustomerMobile, SaleRules.WalkInMobileMaximumLength, "The mobile number"),
         };
+    }
+
+    /// <summary>
+    /// A sale with a typed name AND mobile number but no chosen customer belongs to that customer, who is saved if new (in the same transaction as
+    /// the sale). With only one of the two there is not enough for a customer: the sale stays a cash sale that keeps the typed text.
+    /// </summary>
+    private async Task<CreateSaleInvoiceRequest> SaveTypedCustomerAsync(CreateSaleInvoiceRequest request, CancellationToken cancellationToken)
+    {
+        if (request.CustomerId is not null || string.IsNullOrWhiteSpace(request.WalkInCustomerName) || string.IsNullOrWhiteSpace(request.WalkInCustomerMobile))
+            return request;
+        var customerId = await customerService.FindOrAddForSaleAsync(request.WalkInCustomerName, request.WalkInCustomerMobile, cancellationToken);
+        return request with { CustomerId = customerId, WalkInCustomerName = null, WalkInCustomerMobile = null };
     }
 
     /// <summary>

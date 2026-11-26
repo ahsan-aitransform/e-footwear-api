@@ -64,6 +64,86 @@ public class SalePostingApiTests(ApiTestEnvironment environment)
     }
 
     [Fact]
+    public async Task The_purchase_history_of_a_customer_lists_only_their_invoices_with_the_items_newest_first()
+    {
+        var (scenario, item, cashAccountId) = await NewShopAsync();
+        var customerId = await ContactTestHelpers.CreateCustomerAsync(scenario.OwnerClient, "Haji Rafiq");
+        await PostSaleAsync(scenario.OwnerClient, SaleBody(scenario.FirstStoreId, [Line(item.VariantId, 1, 1_000)], [], customerId: customerId));
+        await PostSaleAsync(scenario.OwnerClient, SaleBody(scenario.FirstStoreId, [Line(item.VariantId, 2, 1_000)], [], customerId: customerId));
+        await PostSaleAsync(scenario.OwnerClient, SaleBody(scenario.FirstStoreId, [Line(item.VariantId, 1, 1_000)], [CashPayment(cashAccountId, 1_000)]));
+
+        var history = await OwnerCompanyScenario.ReadJsonAsync(
+            await scenario.OwnerClient.GetAsync($"{NewSaleUrl}/customers/{customerId}/purchases?pageNumber=1&pageSize=10"));
+
+        Assert.Equal(2, history.GetProperty("totalCount").GetInt32());
+        var invoices = history.GetProperty("items").EnumerateArray().ToArray();
+        Assert.Equal(new long[] { 2, 1 }, invoices.Select(invoice => invoice.GetProperty("invoiceNumber").GetInt64()).ToArray());
+        var line = Assert.Single(invoices[0].GetProperty("lines").EnumerateArray().ToArray());
+        Assert.Equal("Gents Sandal", line.GetProperty("productName").GetString());
+        Assert.Equal(2, line.GetProperty("quantity").GetDecimal());
+        Assert.Equal(2_000, line.GetProperty("netAmount").GetInt64());
+    }
+
+    private static async Task<int> CustomerCountAsync(HttpClient client, string searchText) =>
+        (await OwnerCompanyScenario.ReadJsonAsync(await client.GetAsync($"{ContactTestHelpers.CustomersUrl}?searchText={Uri.EscapeDataString(searchText)}")))
+        .GetProperty("totalCount").GetInt32();
+
+    [Fact]
+    public async Task A_typed_name_and_mobile_save_a_customer_once_and_the_invoices_belong_to_them()
+    {
+        var (scenario, item, cashAccountId) = await NewShopAsync();
+        object Sale(string name, string mobile, Guid? clientTransactionId = null) => SaleBody(
+            scenario.FirstStoreId, [Line(item.VariantId, 1, 1_000)], [CashPayment(cashAccountId, 1_000)],
+            clientTransactionId: clientTransactionId, walkInName: name, walkInMobile: mobile);
+        var clientTransactionId = Guid.NewGuid();
+
+        var first = await PostSaleAsync(scenario.OwnerClient, Sale("Bilal Ahmed", "0300 7654000", clientTransactionId));
+        var retried = await PostSaleAsync(scenario.OwnerClient, Sale("Bilal Ahmed", "0300 7654000", clientTransactionId));
+        var again = await PostSaleAsync(scenario.OwnerClient, Sale("bilal  ahmed", "0300-7654000"));
+
+        var customerId = first.GetProperty("customerId").GetGuid();
+        Assert.Equal("Bilal Ahmed", first.GetProperty("customerName").GetString());
+        Assert.Equal(customerId, retried.GetProperty("customerId").GetGuid());
+        Assert.Equal(customerId, again.GetProperty("customerId").GetGuid());
+        Assert.Equal(1, await CustomerCountAsync(scenario.OwnerClient, "Bilal"));
+        var customer = await ContactTestHelpers.GetCustomerAsync(scenario.OwnerClient, customerId);
+        Assert.Equal("0300 7654000", customer.GetProperty("phone").GetString());
+        Assert.Equal("REGULAR", customer.GetProperty("customerTypeCode").GetString());
+
+        // another name on the same number is another person
+        var relative = await PostSaleAsync(scenario.OwnerClient, Sale("Sara Ahmed", "0300 7654000"));
+        Assert.NotEqual(customerId, relative.GetProperty("customerId").GetGuid());
+    }
+
+    [Fact]
+    public async Task A_typed_name_without_a_mobile_stays_a_cash_sale()
+    {
+        var (scenario, item, cashAccountId) = await NewShopAsync();
+
+        var invoice = await PostSaleAsync(scenario.OwnerClient, SaleBody(
+            scenario.FirstStoreId, [Line(item.VariantId, 1, 1_000)], [CashPayment(cashAccountId, 1_000)], walkInName: "Only A Name"));
+
+        Assert.Equal("Only A Name", invoice.GetProperty("walkInCustomerName").GetString());
+        Assert.Equal(0, await CustomerCountAsync(scenario.OwnerClient, "Only A Name"));
+    }
+
+    [Theory]
+    [InlineData("call me", 1)]
+    [InlineData("0300 7654000", 99)]
+    public async Task A_refused_sale_saves_neither_an_invoice_nor_the_typed_customer(string mobile, int quantity)
+    {
+        var (scenario, item, cashAccountId) = await NewShopAsync(stock: 2);
+
+        var response = await scenario.OwnerClient.PostAsJsonAsync(NewSaleUrl, SaleBody(
+            scenario.FirstStoreId, [Line(item.VariantId, quantity, 1_000)], [CashPayment(cashAccountId, 1_000 * quantity)],
+            walkInName: "Never Saved", walkInMobile: mobile));
+
+        Assert.False(response.IsSuccessStatusCode);
+        Assert.Equal(0, await InvoiceCountAsync(environment, scenario.CompanyId));
+        Assert.Equal(0, await CustomerCountAsync(scenario.OwnerClient, "Never Saved"));
+    }
+
+    [Fact]
     public async Task A_credit_sale_without_a_customer_is_refused()
     {
         var (scenario, item, _) = await NewShopAsync();

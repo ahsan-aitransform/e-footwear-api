@@ -48,7 +48,7 @@ public static class SalesTestHelpers
 
     public static object SaleBody(
         Guid storeId, IReadOnlyList<object> lines, IReadOnlyList<object> payments, long cashReturned = 0, Guid? clientTransactionId = null,
-        Guid? customerId = null, string? description = null) =>
+        Guid? customerId = null, string? description = null, string? walkInName = null, string? walkInMobile = null) =>
         new
         {
             storeId,
@@ -56,8 +56,8 @@ public static class SalesTestHelpers
             clientTransactionId = clientTransactionId ?? Guid.NewGuid(),
             customerId,
             salesmanStaffId = (Guid?)null,
-            walkInCustomerName = (string?)null,
-            walkInCustomerMobile = (string?)null,
+            walkInCustomerName = walkInName,
+            walkInCustomerMobile = walkInMobile,
             posTerminalDeviceId = (Guid?)null,
             description,
             lines,

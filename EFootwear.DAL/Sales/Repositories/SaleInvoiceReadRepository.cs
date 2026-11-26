@@ -195,6 +195,42 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
         };
     }
 
+    // ------------------------------------------------------------------ purchase history of a customer
+
+    public async Task<PagedResult<SaleCustomerPurchaseResponse>> ListCustomerPurchasesAsync(
+        Guid customerId, PageRequest pageRequest, CancellationToken cancellationToken)
+    {
+        // The invoices are the ones View Invoices would list for this customer (posted only, newest first).
+        var invoices = await SearchAsync(
+            new SaleInvoiceSearchFilter(CustomerId: customerId, StatusCode: SaleInvoiceStatusCodes.Posted),
+            new PageRequest(pageRequest.PageNumber, pageRequest.PageSize), cancellationToken);
+        if (invoices.Items.Count == 0)
+            return new PagedResult<SaleCustomerPurchaseResponse>([], invoices.PageNumber, invoices.PageSize, invoices.TotalItemCount);
+
+        var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
+        var companyId = currentUser.CompanyId;
+        var invoiceIds = invoices.Items.Select(invoice => invoice.Id).ToArray();
+        var saleDates = invoices.Items.Select(invoice => invoice.SaleDate).Distinct().ToArray();   // prunes the partitioned line table
+        var lineRows = await databaseContext.Database.SqlQuery<CustomerPurchaseLineRow>($"""
+            select il.invoice_id as "InvoiceId", il.id as "LineId", p.name as "ProductName", v.size_code as "SizeCode", col.name as "ColorName",
+                   il.qty as "Quantity", cast(il.unit_price as bigint) as "UnitPrice", cast(il.net_amount as bigint) as "NetAmount"
+              from sales.invoice_lines il
+              join catalog.variants v on v.company_id = il.company_id and v.id = il.variant_id
+              join catalog.products p on p.company_id = il.company_id and p.id = il.product_id
+              left join master.colors col on col.company_id = v.company_id and col.id = v.color_id
+             where il.company_id = {companyId} and il.invoice_id = any({invoiceIds}) and il.sale_date = any({saleDates})
+             order by il.line_no
+            """).ToListAsync(cancellationToken);
+        var linesByInvoice = lineRows.ToLookup(row => row.InvoiceId);
+
+        var items = invoices.Items.Select(invoice => new SaleCustomerPurchaseResponse(
+            invoice.Id, invoice.StoreName, invoice.DocumentTypeCode, invoice.InvoiceNumber, invoice.SaleDate, invoice.NetAmount, invoice.PaidAmount,
+            invoice.OutstandingAmount,
+            linesByInvoice[invoice.Id].Select(row => new SaleCustomerPurchaseLineResponse(
+                row.LineId, row.ProductName, row.SizeCode, row.ColorName, row.Quantity, row.UnitPrice, row.NetAmount)).ToList())).ToList();
+        return new PagedResult<SaleCustomerPurchaseResponse>(items, invoices.PageNumber, invoices.PageSize, invoices.TotalItemCount);
+    }
+
     // ------------------------------------------------------------------ items
 
     // Same pricing as the posting function: the store price (or the list price) is the shelf price; the promotion engine row lowers it only when it applies.
@@ -471,6 +507,18 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
         public long? OriginalInvoiceNumber { get; set; }
         public string? ReturnReason { get; set; }
         public string? ItemConditionCode { get; set; }
+    }
+
+    private sealed class CustomerPurchaseLineRow
+    {
+        public Guid InvoiceId { get; set; }
+        public Guid LineId { get; set; }
+        public string ProductName { get; set; } = "";
+        public string SizeCode { get; set; } = "";
+        public string? ColorName { get; set; }
+        public decimal Quantity { get; set; }
+        public long UnitPrice { get; set; }
+        public long NetAmount { get; set; }
     }
 
     private sealed class InvoicePaymentRow

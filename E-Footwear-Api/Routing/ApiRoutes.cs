@@ -458,6 +458,7 @@ public static class ApiRoutes
         public const string NewSaleItemSearch = NewSale + "/" + ItemSearchTail;
         public const string NewSaleItemPicture = NewSale + "/" + ItemPictureTail;
         public const string NewSaleCustomers = NewSale + "/" + CustomersTail;
+        public const string NewSaleCustomerPurchases = NewSaleCustomers + "/{customerId:guid}/purchases";
         public const string NewSaleSalesmen = NewSale + "/" + SalesmenTail;
         public const string NewSalePaymentAccounts = NewSale + "/" + PaymentAccountsTail;
         public const string NewSalePosTerminals = NewSale + "/" + PosTerminalsTail;

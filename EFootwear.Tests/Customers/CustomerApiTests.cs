@@ -43,8 +43,27 @@ public class CustomerApiTests(ApiTestEnvironment environment)
         Assert.Equal("Sahiwal", customer.GetProperty("cityName").GetString());
         Assert.Equal("ACTIVE", customer.GetProperty("statusCode").GetString());
         Assert.Equal(0, customer.GetProperty("balanceAmount").GetInt64());
-        Assert.False(customer.TryGetProperty("cnic", out _));          // the removed fields are gone
-        Assert.False(customer.TryGetProperty("fatherName", out _));
+        Assert.Equal(JsonValueKind.Null, customer.GetProperty("cnic").ValueKind);
+        Assert.Equal("REGULAR", customer.GetProperty("customerTypeCode").GetString());
+        Assert.False(customer.TryGetProperty("fatherName", out _));    // the removed field is gone
+    }
+
+    [Fact]
+    public async Task The_cnic_is_stored_with_dashes_and_an_edit_without_a_customer_type_keeps_it()
+    {
+        var scenario = await OwnerCompanyScenario.CreateAsync(environment);
+        var customerId = (await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, CustomersUrl, CustomerBody(
+            "Special One", cnic: "3520212345671", customerTypeCode: "SPECIAL"))).GetProperty("id").GetGuid();
+
+        var created = await GetCustomerAsync(scenario.OwnerClient, customerId);
+        Assert.Equal("35202-1234567-1", created.GetProperty("cnic").GetString());
+        Assert.Equal("SPECIAL", created.GetProperty("customerTypeCode").GetString());
+
+        var edit = await scenario.OwnerClient.PutAsJsonAsync($"{CustomersUrl}/{customerId}", CustomerBody("Special One", rowVersion: created.GetProperty("rowVersion").GetInt64()));
+        Assert.Equal(HttpStatusCode.NoContent, edit.StatusCode);
+        var edited = await GetCustomerAsync(scenario.OwnerClient, customerId);
+        Assert.Equal(JsonValueKind.Null, edited.GetProperty("cnic").ValueKind);
+        Assert.Equal("SPECIAL", edited.GetProperty("customerTypeCode").GetString());
     }
 
     [Fact]
@@ -67,6 +86,8 @@ public class CustomerApiTests(ApiTestEnvironment environment)
     [InlineData("futureBirthDate")]
     [InlineData("badStatus")]
     [InlineData("unknownCity")]
+    [InlineData("badCnic")]
+    [InlineData("badCustomerType")]
     public async Task Invalid_customers_are_refused_with_a_validation_error(string problem)
     {
         var scenario = await OwnerCompanyScenario.CreateAsync(environment);
@@ -78,6 +99,8 @@ public class CustomerApiTests(ApiTestEnvironment environment)
             "badPhone" => CustomerBody("Bad Phone", phone: "call me"),
             "futureBirthDate" => CustomerBody("Born Tomorrow", birthDate: DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd")),
             "badStatus" => CustomerBody("Bad Status", statusCode: "SLEEPING"),
+            "badCnic" => CustomerBody("Bad Cnic", cnic: "12345"),
+            "badCustomerType" => CustomerBody("Bad Type", customerTypeCode: "GOLD"),
             _ => CustomerBody("Unknown City", cityId: Guid.NewGuid()),
         };
 

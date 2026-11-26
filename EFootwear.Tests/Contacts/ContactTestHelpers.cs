@@ -22,7 +22,9 @@ public static class ContactTestHelpers
         Guid? cityId = null,
         string statusCode = "ACTIVE",
         object? openingBalance = null,
-        long? rowVersion = null) => new { name, phone, email, birthDate, cityId, statusCode, openingBalance, rowVersion };
+        long? rowVersion = null,
+        string? cnic = null,
+        string? customerTypeCode = null) => new { name, phone, email, birthDate, cityId, statusCode, openingBalance, rowVersion, cnic, customerTypeCode };
 
     public static object VendorBody(
         string name,

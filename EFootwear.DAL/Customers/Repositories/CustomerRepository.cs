@@ -78,7 +78,24 @@ public sealed class CustomerRepository(DatabaseSession databaseSession, ICurrent
             opening is null ? null : new ContactOpeningBalanceResponse(
                 opening.DebitAmount > 0 ? OpeningBalanceSideCodes.Debit : OpeningBalanceSideCodes.Credit,
                 opening.DebitAmount > 0 ? opening.DebitAmount : opening.CreditAmount, opening.AsOfDate),
-            customer.RowVersion);
+            customer.RowVersion, customer.Cnic, customer.CustomerType);
+    }
+
+    public async Task<Guid?> FindActiveIdByNameAndPhoneAsync(string name, string phone, CancellationToken cancellationToken)
+    {
+        var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
+        var companyId = currentUser.CompanyId;
+        var lowerName = name.ToLower();
+        var plainPhone = phone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "");
+        return await databaseContext.Customers.AsNoTracking()
+            .Where(customer => customer.CompanyId == companyId && !customer.IsDeleted && customer.Status == ContactStatusCodes.Active
+                               && customer.Code != CustomerRules.WalkInCustomerCode
+                               && customer.Name.ToLower() == lowerName
+                               && customer.Phone != null
+                               && customer.Phone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "") == plainPhone)
+            .OrderBy(customer => customer.CreatedAt).ThenBy(customer => customer.Id)
+            .Select(customer => (Guid?)customer.Id)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<Guid> AddAsync(CustomerWriteRecord record, string code, Guid createdBy, CancellationToken cancellationToken)
@@ -127,6 +144,9 @@ public sealed class CustomerRepository(DatabaseSession databaseSession, ICurrent
         customer.BirthDate = record.BirthDate;
         customer.CityId = record.CityId;
         customer.Status = record.StatusCode;
+        customer.Cnic = record.Cnic;
+        // No type in the request: a new customer stays regular and an existing one keeps its type.
+        if (record.CustomerTypeCode is not null) customer.CustomerType = record.CustomerTypeCode;
     }
 
     private async Task<IQueryable<CustomerRow>> RowsAsync(CancellationToken cancellationToken)
@@ -160,7 +180,7 @@ public sealed class CustomerRepository(DatabaseSession databaseSession, ICurrent
 
     private static CustomerListItemResponse ToListItem(CustomerRow row) => new(
         row.Customer.Id, row.Customer.Code, row.Customer.Name, row.Customer.Phone, row.Customer.Email, row.Customer.BirthDate, row.Customer.CityId, row.CityName,
-        row.Customer.Status, row.BalanceAmount, row.Customer.RowVersion);
+        row.Customer.Status, row.BalanceAmount, row.Customer.RowVersion, row.Customer.Cnic, row.Customer.CustomerType);
 
     private sealed class CustomerRow
     {

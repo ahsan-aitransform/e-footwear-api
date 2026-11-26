@@ -12,6 +12,12 @@ public interface ICustomerRepository
     Task<IReadOnlyList<CustomerLookupItemResponse>> LookupAsync(string? searchText, int maximumItemCount, CancellationToken cancellationToken);
     Task<CustomerDetailResponse?> FindDetailAsync(Guid customerId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The oldest active customer with this name (capital letters do not matter) and this phone number (spaces, dashes and brackets do not matter),
+    /// or null. The walk-in customer never matches.
+    /// </summary>
+    Task<Guid?> FindActiveIdByNameAndPhoneAsync(string name, string phone, CancellationToken cancellationToken);
+
     /// <summary>Inserts the customer and saves, so later steps in the same transaction can refer to its id.</summary>
     Task<Guid> AddAsync(CustomerWriteRecord record, string code, Guid createdBy, CancellationToken cancellationToken);
 

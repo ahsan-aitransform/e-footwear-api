@@ -12,4 +12,6 @@ public interface ICustomerEditableFields
     Guid? CityId { get; }
     string StatusCode { get; }
     ContactOpeningBalanceRequest? OpeningBalance { get; }
+    string? Cnic { get; }
+    string? CustomerTypeCode { get; }
 }

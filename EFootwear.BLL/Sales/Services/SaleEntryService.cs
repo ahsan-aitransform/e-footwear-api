@@ -1,6 +1,7 @@
 using EFootwear.BLL.Abstractions;
 using EFootwear.BLL.Catalogue.Contracts;
 using EFootwear.BLL.Catalogue.Services;
+using EFootwear.BLL.Common;
 using EFootwear.BLL.Core.Services;
 using EFootwear.BLL.Sales.Abstractions;
 using EFootwear.BLL.Sales.Contracts;
@@ -59,6 +60,10 @@ public sealed class SaleEntryService(
 
     public Task<IReadOnlyList<SaleCustomerLookupResponse>> SearchCustomersAsync(string? searchText, CancellationToken cancellationToken) =>
         readRepository.SearchCustomersAsync(string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim(), SaleRules.SearchResultLimit, cancellationToken);
+
+    /// <summary>What the customer bought before, in the stores the caller can see.</summary>
+    public Task<PagedResult<SaleCustomerPurchaseResponse>> ListCustomerPurchasesAsync(Guid customerId, PageRequest pageRequest, CancellationToken cancellationToken) =>
+        readRepository.ListCustomerPurchasesAsync(customerId, pageRequest.Normalized(), cancellationToken);
 
     public Task<IReadOnlyList<SaleSalesmanLookupResponse>> ListSalesmenAsync(Guid storeId, CancellationToken cancellationToken)
     {

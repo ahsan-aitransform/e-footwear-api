@@ -22,6 +22,13 @@ public sealed class Customer : IHasRowVersion
     public string? Email { get; set; }
     public DateOnly? BirthDate { get; set; }
     public Guid? CityId { get; set; }
+
+    /// <summary>National identity card number, stored as 12345-1234567-1. Optional.</summary>
+    public string? Cnic { get; set; }
+
+    /// <summary>REGULAR or SPECIAL (<see cref="CustomerTypeCodes"/>).</summary>
+    public string CustomerType { get; set; } = CustomerTypeCodes.Regular;
+
     public string Status { get; set; } = ContactStatusCodes.Active;
     public bool IsDeleted { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }

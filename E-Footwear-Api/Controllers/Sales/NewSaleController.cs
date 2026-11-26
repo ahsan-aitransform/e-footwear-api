@@ -48,6 +48,12 @@ public sealed class NewSaleController(SaleEntryService saleEntryService, SaleInv
     public async Task<ActionResult<IReadOnlyList<SaleCustomerLookupResponse>>> SearchCustomers([FromQuery] string? searchText, CancellationToken cancellationToken) =>
         Ok(await saleEntryService.SearchCustomersAsync(searchText, cancellationToken));
 
+    [HttpGet(ApiRoutes.Sales.NewSaleCustomerPurchases)]
+    [RequirePermission(PermissionCodes.Invoice.NewSale.View)]
+    public async Task<ActionResult<PagedResult<SaleCustomerPurchaseResponse>>> ListCustomerPurchases(
+        Guid customerId, [FromQuery] PageQuery pageQuery, CancellationToken cancellationToken) =>
+        Ok(await saleEntryService.ListCustomerPurchasesAsync(customerId, pageQuery.ToPageRequest(), cancellationToken));
+
     [HttpGet(ApiRoutes.Sales.NewSaleSalesmen)]
     [RequirePermission(PermissionCodes.Invoice.NewSale.View)]
     public async Task<ActionResult<IReadOnlyList<SaleSalesmanLookupResponse>>> ListSalesmen([FromQuery] Guid storeId, CancellationToken cancellationToken) =>

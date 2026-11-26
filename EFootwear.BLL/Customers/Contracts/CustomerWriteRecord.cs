@@ -10,4 +10,6 @@ public sealed record CustomerWriteRecord(
     string? Email,
     DateOnly? BirthDate,
     Guid? CityId,
-    string StatusCode);
+    string StatusCode,
+    string? Cnic,
+    string? CustomerTypeCode);
