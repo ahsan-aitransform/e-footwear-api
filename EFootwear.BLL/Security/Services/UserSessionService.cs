@@ -29,26 +29,6 @@ public sealed class UserSessionService(
     public const int DefaultHistoryDays = 30;
     public const int MaximumHistoryDays = 366;
 
-    public Task<IReadOnlyList<UserSessionResponse>> ListOwnSessionsAsync(string? currentSessionSecret, CancellationToken cancellationToken) =>
-        sessionRepository.ListLiveSessionsAsync(requestContext.CompanyId, requestContext.UserId, currentSessionSecret, cancellationToken);
-
-    public async Task EndOwnSessionAsync(Guid sessionId, CancellationToken cancellationToken)
-    {
-        var ended = await sessionRepository.RevokeAsync(requestContext.CompanyId, requestContext.UserId, sessionId, null,
-                                                        SessionEndedByUserReason, cancellationToken);
-        if (ended == 0) throw new DomainException(ErrorKind.NotFound, "That session is not active.");
-        await unitOfWork.CommitAsync(cancellationToken);
-    }
-
-    /// <summary>Ends every session of the caller except the one in use. Returns how many were ended.</summary>
-    public async Task<int> EndOtherOwnSessionsAsync(string? currentSessionSecret, CancellationToken cancellationToken)
-    {
-        var ended = await sessionRepository.RevokeAsync(requestContext.CompanyId, requestContext.UserId, null, currentSessionSecret,
-                                                        SessionEndedByUserReason, cancellationToken);
-        await unitOfWork.CommitAsync(cancellationToken);
-        return ended;
-    }
-
     public async Task<IReadOnlyList<UserSessionResponse>> ListSessionsOfUserAsync(Guid userId, CancellationToken cancellationToken)
     {
         await userManagementService.FindManageableUserAsync(userId, UserManagementAction.ManageSessions, cancellationToken);

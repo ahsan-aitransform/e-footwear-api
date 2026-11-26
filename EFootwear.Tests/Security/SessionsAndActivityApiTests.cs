@@ -11,43 +11,6 @@ namespace EFootwear.Tests.Security;
 public class SessionsAndActivityApiTests(ApiTestEnvironment environment)
 {
     [Fact]
-    public async Task A_person_sees_their_live_sessions_with_the_current_one_marked_and_can_end_the_others()
-    {
-        var company = await SecurityTestCompany.CreateAsync(environment);
-        var (cashier, firstClient) = await company.CreateSignedInUserAsync(RoleCodes.CashierSalesman);
-        var (secondClient, _) = await company.LoginAsync(cashier.Email, SecurityTestCompany.PasswordAfterFirstSignIn);
-
-        var sessions = (await SecurityTestCompany.ReadAsync(await secondClient.GetAsync(SecurityTestCompany.AccountUrl("sessions")))).EnumerateArray().ToList();
-
-        Assert.Equal(2, sessions.Count);
-        Assert.Equal(1, sessions.Count(session => session.GetProperty("isCurrentSession").GetBoolean()));
-        Assert.DoesNotContain("tokenHash", sessions[0].ToString(), StringComparison.OrdinalIgnoreCase);
-
-        var ended = await secondClient.DeleteAsync(SecurityTestCompany.AccountUrl("sessions/others"));
-        Assert.Equal(HttpStatusCode.OK, ended.StatusCode);
-        Assert.Equal(1, (await SecurityTestCompany.ReadAsync(ended)).GetProperty("endedCount").GetInt32());
-        Assert.Equal(HttpStatusCode.Unauthorized, (await firstClient.GetAsync("/api/v1/auth/me")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await secondClient.GetAsync("/api/v1/auth/me")).StatusCode);
-    }
-
-    [Fact]
-    public async Task A_person_can_end_one_of_their_own_sessions_but_not_somebody_elses()
-    {
-        var company = await SecurityTestCompany.CreateAsync(environment);
-        var (_, firstClient) = await company.CreateSignedInUserAsync(RoleCodes.CashierSalesman);
-        var (_, otherClient) = await company.CreateSignedInUserAsync(RoleCodes.Accountant);
-        var otherSessions = await SecurityTestCompany.ReadAsync(await otherClient.GetAsync(SecurityTestCompany.AccountUrl("sessions")));
-        var otherSessionId = otherSessions[0].GetProperty("id").GetGuid();
-
-        Assert.Equal(HttpStatusCode.NotFound, (await firstClient.DeleteAsync(SecurityTestCompany.AccountUrl("sessions/" + otherSessionId))).StatusCode);
-
-        var ownSessionId = (await SecurityTestCompany.ReadAsync(await firstClient.GetAsync(SecurityTestCompany.AccountUrl("sessions"))))[0].GetProperty("id").GetGuid();
-        Assert.Equal(HttpStatusCode.NoContent, (await firstClient.DeleteAsync(SecurityTestCompany.AccountUrl("sessions/" + ownSessionId))).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await firstClient.GetAsync("/api/v1/auth/me")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await otherClient.GetAsync("/api/v1/auth/me")).StatusCode);
-    }
-
-    [Fact]
     public async Task An_administrator_lists_and_ends_the_sessions_of_a_user_and_it_is_logged()
     {
         var company = await SecurityTestCompany.CreateAsync(environment);

@@ -129,7 +129,6 @@ public static class DependencyInjection
         services.AddScoped<DocumentNumberingService>();
         services.AddScoped<IPosTerminalRepository, PosTerminalRepository>();
         services.AddScoped<PosTerminalService>();
-        services.AddScoped<UserPreferencesService>();
         services.AddScoped<IAttachmentRepository, AttachmentRepository>();
         services.AddSingleton<IFileStorage>(serviceProvider =>
             new LocalFolderFileStorage(ResolveFileStorageRootDirectory(configuration, serviceProvider.GetRequiredService<IHostEnvironment>())));

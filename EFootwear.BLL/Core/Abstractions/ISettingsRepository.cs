@@ -17,8 +17,4 @@ public interface ISettingsRepository
     Task SaveStoreSectionAsync(Guid companyId, Guid storeId, string sectionCode, string valuesJson, long? expectedRowVersion,
                                CancellationToken cancellationToken);
 
-    Task<StoredSettingsSection?> GetUserPreferencesAsync(Guid companyId, Guid userId, CancellationToken cancellationToken);
-
-    Task SaveUserPreferencesAsync(Guid companyId, Guid userId, string valuesJson, long? expectedRowVersion,
-                                  CancellationToken cancellationToken);
 }

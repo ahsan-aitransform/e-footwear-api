@@ -18,8 +18,6 @@ public class SettingsControllersPermissionConventionTests
         "CompanySettingsController.GetEnabledPaymentMethods",
         "CompanyLogoController.GetInformation",
         "CompanyLogoController.GetContent",
-        "UserPreferencesController.Get",
-        "UserPreferencesController.Save",
         "StoresController.List",
     ];
 

@@ -60,13 +60,10 @@ public static class ApiRoutes
         public const string LoginHistory = "login-history";
     }
 
-    /// <summary>The signed-in person's own account: sessions, sign-in history, quick-action toolbar. Needs no permission.</summary>
+    /// <summary>The signed-in person's own account: sign-in history, quick-action toolbar. Needs no permission.</summary>
     public static class Account
     {
         public const string Root = VersionPrefix + "/account";
-        public const string Sessions = "sessions";
-        public const string OtherSessions = "sessions/others";
-        public const string SessionById = "sessions/{sessionId:guid}";
         public const string LoginHistory = "login-history";
         public const string QuickActions = "quick-actions";
     }
@@ -129,11 +126,6 @@ public static class ApiRoutes
     public static class PosTerminals
     {
         public const string Root = VersionPrefix + "/pos-terminals";
-    }
-
-    public static class UserPreferences
-    {
-        public const string Root = VersionPrefix + "/my-preferences";
     }
 
     public static class Backup

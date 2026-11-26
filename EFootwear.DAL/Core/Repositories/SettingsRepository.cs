@@ -63,31 +63,6 @@ public sealed class SettingsRepository(DatabaseSession databaseSession) : ISetti
         EnsureSaved(affectedRows);
     }
 
-    public async Task<StoredSettingsSection?> GetUserPreferencesAsync(Guid companyId, Guid userId, CancellationToken cancellationToken)
-    {
-        var databaseContext = await GetDatabaseContextAsync(companyId, cancellationToken);
-        var rows = await databaseContext.Database.SqlQuery<StoredSectionRow>($"""
-            select setting_values::text as "ValuesJson", row_ver as "RowVersion"
-              from core.user_preferences
-             where company_id = {companyId} and user_id = {userId}
-            """).ToListAsync(cancellationToken);
-        return rows.Select(row => new StoredSettingsSection(row.ValuesJson, row.RowVersion)).FirstOrDefault();
-    }
-
-    public async Task SaveUserPreferencesAsync(Guid companyId, Guid userId, string valuesJson, long? expectedRowVersion,
-                                               CancellationToken cancellationToken)
-    {
-        var databaseContext = await GetDatabaseContextAsync(companyId, cancellationToken);
-        var affectedRows = await databaseContext.Database.ExecuteSqlAsync($"""
-            insert into core.user_preferences as existing (company_id, user_id, setting_values)
-            values ({companyId}, {userId}, {valuesJson}::jsonb)
-            on conflict (company_id, user_id) do update
-                set setting_values = excluded.setting_values
-              where {expectedRowVersion}::bigint is null or existing.row_ver = {expectedRowVersion}::bigint
-            """, cancellationToken);
-        EnsureSaved(affectedRows);
-    }
-
     private async Task<ApplicationDatabaseContext> GetDatabaseContextAsync(Guid companyId, CancellationToken cancellationToken)
     {
         databaseSession.UseCompany(companyId);

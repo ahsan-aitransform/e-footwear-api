@@ -26,7 +26,6 @@ internal static class SettingsUrls
     public static string PosTerminals(Guid? storeId = null) =>
         TestScenarioBuilder.Url(ApiRoutes.PosTerminals.Root) + (storeId is null ? "" : $"?storeId={storeId}");
 
-    public static string MyPreferences => TestScenarioBuilder.Url(ApiRoutes.UserPreferences.Root);
 
     public static string Backup(string segment) => TestScenarioBuilder.Url(ApiRoutes.Backup.Root, segment);
 
