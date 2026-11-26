@@ -399,6 +399,27 @@ public static class ApiRoutes
         public const string SalaryOutstandingReport = "reports/salary-outstanding";
     }
 
+    /// <summary>Special offers and their products, sales on stores, sales on categories, deals, and the conflicts between promotions (docx 2.12 to 2.16, Part 18).</summary>
+    public static class Promotions
+    {
+        public const string Root = VersionPrefix + "/promotions";
+        public const string SpecialOffers = "special-offers";
+        public const string SpecialOfferById = "special-offers/{offerId:guid}";
+        public const string SpecialOfferLines = "special-offers/{offerId:guid}/lines";
+        public const string SpecialOfferLineById = "special-offers/{offerId:guid}/lines/{lineId:guid}";
+        public const string SalesOnStores = "sales-on-stores";
+        public const string SaleOnStoresById = "sales-on-stores/{saleId:guid}";
+        public const string SalesOnCategories = "sales-on-categories";
+        public const string SaleOnCategoriesCategoryOptions = "sales-on-categories/category-options";
+        public const string SaleOnCategoriesById = "sales-on-categories/{saleId:guid}";
+        public const string Deals = "deals";
+        public const string DealById = "deals/{dealId:guid}";
+        public const string DealVariantByBarcode = "deals/variant-by-barcode";
+        public const string Conflicts = "conflicts";
+        public const string ResolveConflict = "conflicts/{groupId:guid}/resolve";
+        public const string RefreshPrices = "refresh-prices";
+    }
+
     /// <summary>Commission plans, commission entries with their approval, and the commission reports (Part 16.2). Payment of commission is the salary payment of <see cref="Payroll"/>.</summary>
     public static class Commissions
     {

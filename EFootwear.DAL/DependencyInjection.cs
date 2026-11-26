@@ -43,10 +43,13 @@ using EFootwear.BLL.HumanResources.Services;
 using EFootwear.BLL.Commissions.Abstractions;
 using EFootwear.BLL.Commissions.Services;
 using EFootwear.BLL.Payroll.Abstractions;
+using EFootwear.BLL.Promotions.Abstractions;
+using EFootwear.BLL.Promotions.Services;
 using EFootwear.BLL.Payroll.Services;
 using EFootwear.DAL.HumanResources.Repositories;
 using EFootwear.DAL.Commissions.Repositories;
 using EFootwear.DAL.Payroll.Repositories;
+using EFootwear.DAL.Promotions.Repositories;
 using EFootwear.BLL.Inventory.Abstractions;
 using EFootwear.BLL.Inventory.Services;
 using EFootwear.DAL.Inventory.Repositories;
@@ -290,6 +293,13 @@ public static class DependencyInjection
         // <module-registrations:expenses:end>
 
         // --- Promotions ---
+        services.AddScoped<IPromotionRuleRepository, PromotionRuleRepository>();
+        services.AddScoped<PromotionRuleService>();
+        services.AddScoped<SpecialOfferLineService>();
+        services.AddScoped<IPromotionDealRepository, PromotionDealRepository>();
+        services.AddScoped<PromotionDealService>();
+        services.AddScoped<IPromotionConflictRepository, PromotionConflictRepository>();
+        services.AddScoped<PromotionConflictService>();
         // <module-registrations:promotions:end>
 
         // --- Integrations ---
