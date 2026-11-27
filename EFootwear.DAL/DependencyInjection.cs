@@ -208,6 +208,7 @@ public static class DependencyInjection
         services.AddScoped<IPriceBandRepository, PriceBandRepository>();
         services.AddScoped<IProductImageRepository, ProductImageRepository>();
         services.AddScoped<ProductCatalogService>();
+        services.AddScoped<ProductImportService>();
         services.AddScoped<ProductListingService>();
         services.AddScoped<ProductLedgerService>();
         services.AddScoped<BulkPriceChangeService>();

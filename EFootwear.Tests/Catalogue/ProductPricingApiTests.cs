@@ -279,15 +279,16 @@ public class ProductPricingApiTests(ApiTestEnvironment environment)
     }
 
     [Fact]
-    public async Task A_store_user_cannot_change_prices_of_a_store_they_do_not_work_in()
+    public async Task Only_the_owner_changes_prices_even_when_another_user_still_holds_an_old_grant()
     {
         var (scenario, lookups) = await NewCompanyAsync();
-        var secondStore = await scenario.CreateStoreAsync("S2");
         await CreateAsync(scenario.OwnerClient, lookups, "Alpha", Variant("27", 500, 999));
         var manager = await scenario.SignInUserWithPermissionsAsync("STORE_MANAGER", [scenario.FirstStoreId],
             PermissionCodes.Products.ChangePricesOldToNew.View, PermissionCodes.Products.ChangePricesOldToNew.Edit);
+        var change = OldToNew(999, 1000, storeId: scenario.FirstStoreId);
 
-        TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await manager.PostAsJsonAsync(Url(ApiRoutes.ProductPrices.OldToNew), OldToNew(999, 1000, storeId: secondStore)));
-        TestScenarioBuilder.AssertStatus(HttpStatusCode.OK, await manager.PostAsJsonAsync(Url(ApiRoutes.ProductPrices.OldToNew), OldToNew(999, 1000, storeId: scenario.FirstStoreId)));
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await manager.PostAsJsonAsync(Url(ApiRoutes.ProductPrices.OldToNew), change));
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.OK, await manager.PostAsJsonAsync(Url(ApiRoutes.ProductPrices.OldToNewPreview), change));
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.OK, await scenario.OwnerClient.PostAsJsonAsync(Url(ApiRoutes.ProductPrices.OldToNew), change));
     }
 }

@@ -36,7 +36,7 @@ public sealed class RequestContext : ICurrentUser
 
     /// <summary>
     /// The permission codes of a company user. The company owner holds the whole catalog (so new screens reach the owner
-    /// without a data change); everyone else holds exactly the rows of sec.user_permissions. Platform administrators hold none:
+    /// without a data change); everyone else holds the rows of sec.user_permissions, without the owner-only ones. Platform administrators hold none:
     /// they are controlled by the PlatformAdministratorOnly policy instead.
     /// </summary>
     public IReadOnlySet<string> GrantedPermissionCodes
@@ -46,7 +46,7 @@ public sealed class RequestContext : ICurrentUser
             if (_companyUserIdentity is null) return NoPermissionCodes;
             return _companyUserIdentity.RoleCode == RoleCodes.CompanyOwner
                 ? PermissionCatalog.AllPermissionCodes
-                : _companyUserIdentity.GrantedPermissionCodes;
+                : _companyUserIdentity.GrantedPermissionCodes.Where(code => !OwnerOnlyPermissions.Contains(code)).ToHashSet(StringComparer.Ordinal);
         }
     }
 

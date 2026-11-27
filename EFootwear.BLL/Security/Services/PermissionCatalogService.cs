@@ -17,7 +17,8 @@ public sealed class PermissionCatalogService
                         screen.DisplayName,
                         screen.SubGroupCode,
                         screen.Actions
-                            .Select(action => new PermissionActionResponse(action.PermissionCode, action.ActionCode, action.DisplayName))
+                            .Select(action => new PermissionActionResponse(action.PermissionCode, action.ActionCode, action.DisplayName,
+                                OwnerOnlyPermissions.Contains(action.PermissionCode)))
                             .ToList()))
                     .ToList()))
             .ToList());

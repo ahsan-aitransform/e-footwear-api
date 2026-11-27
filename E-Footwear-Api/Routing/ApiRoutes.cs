@@ -317,6 +317,9 @@ public static class ApiRoutes
         public const string LookupForLabels = "lookup/for-labels";
         public const string ById = "{productId:guid}";
         public const string NextCode = "next-code";
+        public const string ImportTemplate = "import-template";
+        public const string ImportPreview = "import-preview";
+        public const string Import = "import";
         public const string PriceHistory = "{productId:guid}/price-history";
         public const string Image = "{productId:guid}/images/{slot:int}";
         public const string PriceCheck = "price-check";

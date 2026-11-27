@@ -215,6 +215,7 @@ public sealed class UserManagementService(
             throw new DomainException(ErrorKind.Validation, "Platform administrators create users with the suggested permissions of the role.");
         var chosen = request.PermissionCodes.Distinct(StringComparer.Ordinal).ToList();
         PermissionGrantRules.EnsureCodesAreKnown(chosen);
+        if (request.RoleCode != RoleCodes.CompanyOwner) PermissionGrantRules.EnsureNotOwnerOnly(chosen);
         PermissionGrantRules.EnsureCanGrant(requestContext.GrantedPermissionCodes, chosen);
         return chosen;
     }

@@ -31,7 +31,7 @@ public static class DefaultRolePermissionTemplates
             [RoleCodes.Accountant] = BuildAccountantTemplate(),
         };
 
-    // Store manager: runs one store. Everything operational, except delete, plus the restricted price operations.
+    // Store manager: runs one store. Everything operational, except delete. Prices and discounts are the owner's (OwnerOnlyPermissions).
     private static IReadOnlyList<string> BuildStoreManagerTemplate()
     {
         var codes = new List<string>();
@@ -112,6 +112,6 @@ public static class DefaultRolePermissionTemplates
         var unknown = codes.Where(code => !PermissionCatalog.IsKnownPermissionCode(code)).Distinct().ToList();
         if (unknown.Count > 0)
             throw new InvalidOperationException($"A role template names permission codes that are not in the catalog: {string.Join(", ", unknown)}.");
-        return codes.Distinct(StringComparer.Ordinal).OrderBy(code => code, StringComparer.Ordinal).ToList();
+        return codes.Distinct(StringComparer.Ordinal).Where(code => !OwnerOnlyPermissions.Contains(code)).OrderBy(code => code, StringComparer.Ordinal).ToList();
     }
 }
