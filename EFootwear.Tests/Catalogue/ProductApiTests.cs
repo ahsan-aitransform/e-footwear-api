@@ -38,13 +38,11 @@ public class ProductApiTests(ApiTestEnvironment environment)
         Assert.Equal(code, product.GetProperty("code").GetString());
         Assert.Equal([code + "S27", code + "S28"], ReadVariants(product).Select(variant => variant.Barcode).ToArray());
         var history = await PriceHistoryAsync(scenario.OwnerClient, created.GetProperty("productId").GetGuid());
-        Assert.Equal(4, history.GetProperty("totalCount").GetInt32());
-        Assert.All(history.GetProperty("items").EnumerateArray(), item =>
-        {
-            Assert.Equal("INITIAL_PRICE", item.GetProperty("reason").GetString());
-            Assert.Equal(JsonValueKind.Null, item.GetProperty("oldPrice").ValueKind);
-        });
-        Assert.Equal(2, history.GetProperty("items").EnumerateArray().Count(item => item.GetProperty("priceType").GetString() == "PURCHASE"));
+        var initial = Assert.Single(history.GetProperty("items").EnumerateArray());
+        Assert.Equal("INITIAL_PRICE", initial.GetProperty("reason").GetString());
+        Assert.Equal(JsonValueKind.Null, initial.GetProperty("oldSalePrice").ValueKind);
+        Assert.Equal(550, initial.GetProperty("newPurchasePriceLowest").GetInt64());
+        Assert.Equal(999, initial.GetProperty("newSalePriceHighest").GetInt64());
     }
 
     [Fact]
@@ -140,9 +138,9 @@ public class ProductApiTests(ApiTestEnvironment environment)
         Assert.Equal(1199, ReadVariants(await GetProductAsync(scenario.OwnerClient, productId)).Single().SalePrice);
         var history = await PriceHistoryAsync(scenario.OwnerClient, productId);
         var change = history.GetProperty("items").EnumerateArray().Single(item => item.GetProperty("reason").GetString() == "PRODUCT_EDIT");
-        Assert.Equal("SALE", change.GetProperty("priceType").GetString());
-        Assert.Equal(999, change.GetProperty("oldPrice").GetInt64());
-        Assert.Equal(1199, change.GetProperty("newPrice").GetInt64());
+        Assert.Equal(JsonValueKind.Null, change.GetProperty("newPurchasePriceLowest").ValueKind);
+        Assert.Equal(999, change.GetProperty("oldSalePrice").GetInt64());
+        Assert.Equal(1199, change.GetProperty("newSalePriceLowest").GetInt64());
     }
 
     [Fact]

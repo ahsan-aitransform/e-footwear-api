@@ -145,8 +145,8 @@ public class ProductDiscountApiTests(ApiTestEnvironment environment)
         Assert.Equal(1500, ReadVariants(await GetProductAsync(scenario.OwnerClient, untouched.ProductId)).Single().SalePrice);
         var reversal = (await PriceHistoryAsync(scenario.OwnerClient, changed.ProductId)).GetProperty("items").EnumerateArray()
             .Single(item => item.GetProperty("reason").GetString() == "PRICE_REVERSAL");
-        Assert.Equal(1098, reversal.GetProperty("oldPrice").GetInt64());
-        Assert.Equal(999, reversal.GetProperty("newPrice").GetInt64());
+        Assert.Equal(1098, reversal.GetProperty("oldSalePrice").GetInt64());
+        Assert.Equal(999, reversal.GetProperty("newSalePriceLowest").GetInt64());
     }
 
     [Fact]

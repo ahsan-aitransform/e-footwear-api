@@ -11,11 +11,8 @@ namespace EFootwear.DAL.Catalogue.Repositories;
 /// <summary>The append-only price history (catalog.price_events). Rows are only ever added; the database refuses UPDATE and DELETE.</summary>
 public sealed class PriceHistoryRepository(DatabaseSession databaseSession, ICurrentUser currentUser) : IPriceHistoryRepository
 {
-    private static readonly SortableFields<PriceHistoryRow> SortablePriceHistoryFields = new SortableFields<PriceHistoryRow>()
-        .Allow("changedAt", row => row.ChangedAt)
-        .Allow("sizeCode", row => row.SizeCode)
-        .Allow("priceType", row => row.PriceType)
-        .Allow("newPrice", row => row.NewPrice);
+    private static readonly SortableFields<PriceChangeRow> SortablePriceHistoryFields = new SortableFields<PriceChangeRow>()
+        .Allow("changedAt", row => row.ChangedAt);
 
     public async Task AddEventsAsync(IReadOnlyList<PriceEventWriteData> events, Guid changedBy, CancellationToken cancellationToken)
     {
@@ -45,18 +42,37 @@ public sealed class PriceHistoryRepository(DatabaseSession databaseSession, ICur
                    where priceEvent.CompanyId == companyId && variant.ProductId == productId
                    select new PriceHistoryRow
                    {
-                       Id = priceEvent.Id, VariantId = priceEvent.VariantId, SizeCode = variant.SizeCode, Barcode = variant.Barcode, StoreId = priceEvent.StoreId,
+                       StoreId = priceEvent.StoreId,
                        StoreName = store == null ? null : store.Name, PriceType = priceEvent.PriceType, OldPrice = priceEvent.OldPrice, NewPrice = priceEvent.NewPrice,
                        BatchId = priceEvent.BatchId, Reason = priceEvent.Reason, ChangedAt = priceEvent.ChangedAt, ChangedByName = user == null ? null : user.FullName,
                    };
 
-        var total = await rows.LongCountAsync(cancellationToken);
-        var ordered = SortablePriceHistoryFields.TryOrder(rows, pageRequest.SortField, pageRequest.SortDirection, out var requestedOrder)
-            ? requestedOrder.ThenByDescending(row => row.Id)
-            : rows.OrderByDescending(row => row.ChangedAt).ThenByDescending(row => row.Id);
+        // Everything saved together (same moment, store, reason and person) is one line: all sizes, purchase and sale price side by side.
+        var changes = rows
+            .GroupBy(row => new { row.ChangedAt, row.StoreId, row.StoreName, row.BatchId, row.Reason, row.ChangedByName })
+            .Select(group => new PriceChangeRow
+            {
+                StoreId = group.Key.StoreId, StoreName = group.Key.StoreName, BatchId = group.Key.BatchId, Reason = group.Key.Reason,
+                ChangedAt = group.Key.ChangedAt, ChangedByName = group.Key.ChangedByName,
+                OldPurchaseLowest = group.Min(row => row.PriceType == PriceTypeCodes.Purchase ? row.OldPrice : null),
+                OldPurchaseHighest = group.Max(row => row.PriceType == PriceTypeCodes.Purchase ? row.OldPrice : null),
+                NewPurchaseLowest = group.Min(row => row.PriceType == PriceTypeCodes.Purchase ? (long?)row.NewPrice : null),
+                NewPurchaseHighest = group.Max(row => row.PriceType == PriceTypeCodes.Purchase ? (long?)row.NewPrice : null),
+                OldSaleLowest = group.Min(row => row.PriceType == PriceTypeCodes.Sale ? row.OldPrice : null),
+                OldSaleHighest = group.Max(row => row.PriceType == PriceTypeCodes.Sale ? row.OldPrice : null),
+                NewSaleLowest = group.Min(row => row.PriceType == PriceTypeCodes.Sale ? (long?)row.NewPrice : null),
+                NewSaleHighest = group.Max(row => row.PriceType == PriceTypeCodes.Sale ? (long?)row.NewPrice : null),
+            });
+
+        var total = await changes.LongCountAsync(cancellationToken);
+        var ordered = SortablePriceHistoryFields.TryOrder(changes, pageRequest.SortField, pageRequest.SortDirection, out var requestedOrder)
+            ? requestedOrder.ThenBy(row => row.StoreId)
+            : changes.OrderByDescending(row => row.ChangedAt).ThenBy(row => row.StoreId);
         var page = await ordered.Skip(pageRequest.SkippedItemCount).Take(pageRequest.PageSize).ToListAsync(cancellationToken);
-        var items = page.Select(row => new PriceHistoryEntryResponse(row.Id, row.VariantId, row.SizeCode, row.Barcode,
-            row.StoreId == Guid.Empty ? null : row.StoreId, row.StoreId == Guid.Empty ? null : row.StoreName, row.PriceType, row.OldPrice, row.NewPrice,
+        var items = page.Select(row => new PriceHistoryEntryResponse(
+            row.StoreId == Guid.Empty ? null : row.StoreId, row.StoreId == Guid.Empty ? null : row.StoreName,
+            row.OldPurchaseLowest == row.OldPurchaseHighest ? row.OldPurchaseLowest : null, row.NewPurchaseLowest, row.NewPurchaseHighest,
+            row.OldSaleLowest == row.OldSaleHighest ? row.OldSaleLowest : null, row.NewSaleLowest, row.NewSaleHighest,
             row.BatchId, row.Reason, row.ChangedAt, row.ChangedByName)).ToList();
         return new PagedResult<PriceHistoryEntryResponse>(items, pageRequest.PageNumber, pageRequest.PageSize, total);
     }
@@ -78,10 +94,6 @@ public sealed class PriceHistoryRepository(DatabaseSession databaseSession, ICur
 
     private sealed class PriceHistoryRow
     {
-        public Guid Id { get; set; }
-        public Guid VariantId { get; set; }
-        public string SizeCode { get; set; } = "";
-        public string Barcode { get; set; } = "";
         public Guid StoreId { get; set; }
         public string? StoreName { get; set; }
         public string PriceType { get; set; } = "";
@@ -91,5 +103,23 @@ public sealed class PriceHistoryRepository(DatabaseSession databaseSession, ICur
         public string? Reason { get; set; }
         public DateTimeOffset ChangedAt { get; set; }
         public string? ChangedByName { get; set; }
+    }
+
+    private sealed class PriceChangeRow
+    {
+        public Guid StoreId { get; set; }
+        public string? StoreName { get; set; }
+        public Guid? BatchId { get; set; }
+        public string? Reason { get; set; }
+        public DateTimeOffset ChangedAt { get; set; }
+        public string? ChangedByName { get; set; }
+        public long? OldPurchaseLowest { get; set; }
+        public long? OldPurchaseHighest { get; set; }
+        public long? NewPurchaseLowest { get; set; }
+        public long? NewPurchaseHighest { get; set; }
+        public long? OldSaleLowest { get; set; }
+        public long? OldSaleHighest { get; set; }
+        public long? NewSaleLowest { get; set; }
+        public long? NewSaleHighest { get; set; }
     }
 }

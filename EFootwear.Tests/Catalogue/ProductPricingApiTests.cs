@@ -63,11 +63,11 @@ public class ProductPricingApiTests(ApiTestEnvironment environment)
         Assert.Equal(1299, await SalePriceAsync(scenario.OwnerClient, second.ProductId, "40"));
         var events = (await PriceHistoryAsync(scenario.OwnerClient, first.ProductId)).GetProperty("items").EnumerateArray()
             .Where(item => item.GetProperty("reason").GetString() == "BULK_OLD_TO_NEW").ToList();
-        Assert.Equal(2, events.Count);
+        Assert.Single(events);
         Assert.All(events, item =>
         {
-            Assert.Equal(999, item.GetProperty("oldPrice").GetInt64());
-            Assert.Equal(1099, item.GetProperty("newPrice").GetInt64());
+            Assert.Equal(999, item.GetProperty("oldSalePrice").GetInt64());
+            Assert.Equal(1099, item.GetProperty("newSalePriceLowest").GetInt64());
             Assert.Equal(applied.GetProperty("batchId").GetGuid(), item.GetProperty("batchId").GetGuid());
         });
         Assert.Equal(0, (await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, Url(ApiRoutes.ProductPrices.OldToNew), OldToNew(999, 1099))).GetProperty("changedVariantCount").GetInt32());
@@ -220,7 +220,7 @@ public class ProductPricingApiTests(ApiTestEnvironment environment)
 
         var page = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{ProductUrl(product.ProductId)}/price-history?pageSize=1"));
 
-        Assert.Equal(3, page.GetProperty("totalCount").GetInt32());
+        Assert.Equal(2, page.GetProperty("totalCount").GetInt32()); // the first prices are one line, the change another
         Assert.Equal(1, page.GetProperty("items").GetArrayLength());
         Assert.Equal("BULK_OLD_TO_NEW", page.GetProperty("items")[0].GetProperty("reason").GetString());
     }
