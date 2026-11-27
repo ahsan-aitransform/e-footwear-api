@@ -31,6 +31,8 @@ public interface IProductDiscountRepository
     Task CreateProductDiscountRulesAsync(Guid batchId, Guid productId, IReadOnlyCollection<Guid> storeIds, decimal discountPercent, Guid channelId,
                                          Guid createdBy, CancellationToken cancellationToken);
 
-    /// <summary>The product ids of the stock-range candidates (all pages), used to remove the products from older rules first.</summary>
     Task<IReadOnlyList<Guid>> ListStockRangeCandidateProductIdsAsync(StockRangeDiscountRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Whether a matching product has a size selling at this price or less, which an amount off would make free.</summary>
+    Task<bool> AnyStockRangeCandidatePricedAtOrBelowAsync(StockRangeDiscountRequest request, long price, CancellationToken cancellationToken);
 }

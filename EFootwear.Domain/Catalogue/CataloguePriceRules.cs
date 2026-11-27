@@ -14,6 +14,15 @@ public static class CataloguePriceRules
     /// <summary>core.pct has four decimals; the screens accept two.</summary>
     public const int PercentageDecimalPlaces = 2;
 
+    /// <summary>Both ends are optional; a given one cannot be negative and the highest cannot be below the lowest.</summary>
+    public static void EnsureValidStockRange(decimal? minimumStock, decimal? maximumStock)
+    {
+        if (minimumStock < 0 || maximumStock < 0)
+            throw new DomainException(ErrorKind.Validation, "The stock range cannot be negative.");
+        if (maximumStock < minimumStock)
+            throw new DomainException(ErrorKind.Validation, "The highest stock cannot be lower than the lowest stock.");
+    }
+
     public static void EnsureValidPrice(long price, string priceDescription)
     {
         if (price < 0)

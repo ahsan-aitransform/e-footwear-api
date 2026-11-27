@@ -30,7 +30,34 @@ public class ProductDiscountApiTests(ApiTestEnvironment environment)
     }
 
     private static object StockRange(Guid storeId, decimal minimum, decimal maximum, decimal percent, Guid? clientTransactionId = null) =>
-        new { storeId, brandId = (Guid?)null, minimumStock = minimum, maximumStock = maximum, discountPercent = percent, clientTransactionId };
+        new { storeId, minimumStock = minimum, maximumStock = maximum, discountType = "PERCENT", discountValue = percent, clientTransactionId };
+
+    private static object AmountOff(Guid storeId, decimal amount, Guid[]? brandIds = null) =>
+        new { storeId, brandIds, discountType = "AMOUNT", discountValue = amount };
+
+    [Fact]
+    public async Task An_amount_off_discount_without_a_stock_range_takes_rupees_off_the_matching_products()
+    {
+        var (scenario, lookups) = await NewCompanyAsync();
+        var product = await CreateAsync(scenario.OwnerClient, lookups, "Alpha", Variant("27", 500, 999));
+        var barcode = product.Variants.Single().Barcode;
+        var url = Url(ApiRoutes.ProductDiscounts.StockRange);
+
+        // another brand: nothing matches; an amount that would make the piece free: refused
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.BadRequest, await scenario.OwnerClient.PostAsJsonAsync(url, AmountOff(scenario.FirstStoreId, 100, [Guid.NewGuid()])));
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.BadRequest, await scenario.OwnerClient.PostAsJsonAsync(url, AmountOff(scenario.FirstStoreId, 999)));
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.BadRequest, await scenario.OwnerClient.PostAsJsonAsync(url, AmountOff(scenario.FirstStoreId, 10.5m)));
+        await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, url, AmountOff(scenario.FirstStoreId, 100, [lookups.BrandId]));
+
+        Assert.Equal(899, await EffectivePriceAsync(scenario.OwnerClient, barcode, scenario.FirstStoreId));
+
+        // the price change in percent takes the same stock range: this size has no stock
+        var percentUrl = $"{ProductPricesUrl}/{ApiRoutes.ProductPrices.PercentagePreview}";
+        async Task<int> CountAsync(decimal minimumStock) => (await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, percentUrl,
+            new { increasePercent = 10m, minimumStock, storeId = scenario.FirstStoreId })).GetProperty("totalCount").GetInt32();
+        Assert.Equal(1, await CountAsync(0));
+        Assert.Equal(0, await CountAsync(1));
+    }
 
     private static object OnStores(Guid productId, IEnumerable<Guid> storeIds, decimal percent, Guid? clientTransactionId = null) =>
         new { productId, storeIds = storeIds.ToArray(), discountPercent = percent, clientTransactionId };

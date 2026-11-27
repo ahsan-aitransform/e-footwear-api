@@ -29,11 +29,11 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
     {
         if (request is { IncreasePercent: null, DecreasePercent: null })
             return PreviewAsync(request.StoreId, request.DepartmentId, request.CategoryIds, request.BrandIds, PriceTypeCodes.Sale, pageRequest,
-                (_, _) => "true", (_, current) => current, cancellationToken);
+                (_, _) => "true", (_, current) => current, cancellationToken, (request.MinimumStock, request.MaximumStock));
         var multiplier = request.IncreasePercent is { } increase ? 100m + increase : 100m - request.DecreasePercent!.Value;
         return PreviewAsync(request.StoreId, request.DepartmentId, request.CategoryIds, request.BrandIds, PriceTypeCodes.Sale, pageRequest,
             (parameters, current) => PercentageCondition(parameters, current, multiplier),
-            (parameters, current) => PercentageNewPrice(parameters, current, multiplier), cancellationToken);
+            (parameters, current) => PercentageNewPrice(parameters, current, multiplier), cancellationToken, (request.MinimumStock, request.MaximumStock));
     }
 
     public async Task<int> ApplyOldToNewAsync(Guid batchId, OldToNewPriceChangeRequest request, Guid changedBy, CancellationToken cancellationToken)
@@ -54,7 +54,8 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         var condition = PercentageCondition(parameters, current, multiplier);
         var newPrice = PercentageNewPrice(parameters, current, multiplier);
         return await ApplyAsync(batchId, PriceTypeCodes.Sale, request.StoreId, request.DepartmentId, request.CategoryIds, request.BrandIds, productIds: null,
-                                condition, newPrice, PriceChangeReasonCodes.BulkPercentage, parameters, changedBy, cancellationToken);
+                                condition, newPrice, PriceChangeReasonCodes.BulkPercentage, parameters, changedBy, cancellationToken,
+                                (request.MinimumStock, request.MaximumStock));
     }
 
     public async Task<int> ApplyNewSalePriceAsync(Guid batchId, SetNewSalePriceRequest request, Guid changedBy, CancellationToken cancellationToken)
@@ -118,7 +119,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
 
     private async Task<int> ApplyAsync(Guid batchId, string priceType, Guid? storeId, Guid? departmentId, IReadOnlyList<Guid>? categoryIds, IReadOnlyList<Guid>? brandIds, Guid[]? productIds,
                                        string condition, string newPriceExpression, string reason, SqlParameterList parameters, Guid changedBy,
-                                       CancellationToken cancellationToken)
+                                       CancellationToken cancellationToken, (decimal? Minimum, decimal? Maximum) stockRange = default)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         await databaseContext.SaveChangesAsync(cancellationToken);
@@ -129,7 +130,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         var priceTypeParameter = parameters.Add(priceType);
         var store = storeId is { } id ? parameters.Add(id) : null;
         var current = CurrentPriceExpression(priceType, store is not null);
-        var filters = BuildFilters(departmentId, categoryIds, brandIds, productIds, parameters);
+        var filters = BuildFilters(departmentId, categoryIds, brandIds, productIds, parameters) + BuildStockRangeFilter(stockRange, store, parameters);
         var storeJoin = store is null ? "" : $"left join catalog.store_price_overrides so on so.company_id = v.company_id and so.variant_id = v.id and so.store_id = {store}";
         var maximum = CataloguePriceRules.MaximumPrice;
 
@@ -201,7 +202,8 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
 
     private async Task<PagedResult<PriceChangeRowResponse>> PreviewAsync(Guid? storeId, Guid? departmentId, IReadOnlyList<Guid>? categoryIds, IReadOnlyList<Guid>? brandIds, string priceType,
                                                                         PageRequest pageRequest, Func<SqlParameterList, string, string> condition,
-                                                                        Func<SqlParameterList, string, string> newPrice, CancellationToken cancellationToken)
+                                                                        Func<SqlParameterList, string, string> newPrice, CancellationToken cancellationToken,
+                                                                        (decimal? Minimum, decimal? Maximum) stockRange = default)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var parameters = new SqlParameterList();
@@ -210,7 +212,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         var current = CurrentPriceExpression(priceType, store is not null);
         var conditionSql = condition(parameters, current);
         var newPriceSql = newPrice(parameters, current);
-        var filters = BuildFilters(departmentId, categoryIds, brandIds, null, parameters);
+        var filters = BuildFilters(departmentId, categoryIds, brandIds, null, parameters) + BuildStockRangeFilter(stockRange, store, parameters);
         var storeJoin = store is null ? "" : $"left join catalog.store_price_overrides so on so.company_id = v.company_id and so.variant_id = v.id and so.store_id = {store}";
         var stockCondition = store is null ? "" : $"and sb.store_id = {store}";
         var currentSale = store is null ? "vp.sale_price" : "coalesce(so.sale_price, vp.sale_price)";
@@ -253,6 +255,17 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
 
     private string PercentageCondition(SqlParameterList parameters, string current, decimal multiplier) =>
         $"{PercentageNewPrice(parameters, current, multiplier)} <> {current}";
+
+    /// <summary>The stock of the size in the store, or in all stores together when no store is chosen.</summary>
+    private static string BuildStockRangeFilter((decimal? Minimum, decimal? Maximum) range, string? store, SqlParameterList parameters)
+    {
+        if (range is { Minimum: null, Maximum: null }) return "";
+        var storeCondition = store is null ? "" : $" and q.store_id = {store}";
+        var quantity = $"coalesce((select sum(q.qty_on_hand) from inv.stock_balances q where q.company_id = v.company_id and q.variant_id = v.id{storeCondition}), 0)";
+        var minimum = range.Minimum is { } lowest ? $" and {quantity} >= {parameters.Add(lowest)}" : "";
+        var maximum = range.Maximum is { } highest ? $" and {quantity} <= {parameters.Add(highest)}" : "";
+        return minimum + maximum;
+    }
 
     private static string BuildFilters(Guid? departmentId, IReadOnlyList<Guid>? categoryIds, IReadOnlyList<Guid>? brandIds, Guid[]? productIds, SqlParameterList parameters)
     {

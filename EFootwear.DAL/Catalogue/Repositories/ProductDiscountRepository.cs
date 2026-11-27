@@ -59,6 +59,17 @@ public sealed class ProductDiscountRepository(DatabaseSession databaseSession, I
         return await databaseContext.Database.SqlQueryRaw<Guid>($"select x.\"ProductId\" as \"Value\" from ({candidateSql}) x", parameters.ToArray()).ToListAsync(cancellationToken);
     }
 
+    public async Task<bool> AnyStockRangeCandidatePricedAtOrBelowAsync(StockRangeDiscountRequest request, long price, CancellationToken cancellationToken)
+    {
+        var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
+        var parameters = new SqlParameterList();
+        var (candidateSql, _) = BuildCandidateSql(request, parameters);
+        var limit = parameters.Add(price);
+        return await databaseContext.Database
+            .SqlQueryRaw<bool>($"select exists (select 1 from ({candidateSql}) x where x.\"LowestSalePrice\" <= {limit}) as \"Value\"", parameters.ToArray())
+            .SingleAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ProductStoreDiscountRowResponse>> ListStoreDiscountRowsAsync(Guid productId, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
@@ -125,10 +136,14 @@ public sealed class ProductDiscountRepository(DatabaseSession databaseSession, I
         var companyId = currentUser.CompanyId;
         var storeName = await databaseContext.Database.SqlQuery<string>($"select name as \"Value\" from core.stores where company_id = {companyId} and id = {request.StoreId}")
             .SingleAsync(cancellationToken);
-        var name = $"Clear stock {request.MinimumStock:0.###}-{request.MaximumStock:0.###}: {request.DiscountPercent:0.##}% off at {storeName}";
+        var discountType = request.DiscountType!;
+        var discountValue = request.DiscountValue!.Value;
+        var discountText = discountType == ProductDiscountRuleCodes.DiscountTypeAmount ? $"Rs {discountValue:0} off" : $"{discountValue:0.##}% off";
+        var stockText = request.MinimumStock is null && request.MaximumStock is null ? "" : $" (stock {request.MinimumStock ?? 0:0.###} to {request.MaximumStock?.ToString("0.###") ?? "any"})";
+        var name = $"{discountText} at {storeName}{stockText}";
 
-        var ruleId = await InsertRuleAsync(databaseContext, batchId, name, request.DiscountPercent, request.MinimumStock, request.MaximumStock, request.StoreId, channelId, createdBy,
-                                           cancellationToken);
+        var ruleId = await InsertRuleAsync(databaseContext, batchId, name, discountType, discountValue, request.MinimumStock, request.MaximumStock, request.StoreId, channelId,
+                                           createdBy, cancellationToken);
         await InsertTargetsAsync(databaseContext, ruleId, productIds, cancellationToken);
         return productIds.Length;
     }
@@ -145,12 +160,12 @@ public sealed class ProductDiscountRepository(DatabaseSession databaseSession, I
             var storeName = await databaseContext.Database.SqlQuery<string>($"select name as \"Value\" from core.stores where company_id = {companyId} and id = {storeId}")
                 .SingleAsync(cancellationToken);
             var name = $"Discount {discountPercent:0.##}% on {productCode} at {storeName}";
-            var ruleId = await InsertRuleAsync(databaseContext, batchId, name, discountPercent, null, null, storeId, channelId, createdBy, cancellationToken);
+            var ruleId = await InsertRuleAsync(databaseContext, batchId, name, ProductDiscountRuleCodes.DiscountTypePercent, discountPercent, null, null, storeId, channelId, createdBy, cancellationToken);
             await InsertTargetsAsync(databaseContext, ruleId, [productId], cancellationToken);
         }
     }
 
-    private async Task<Guid> InsertRuleAsync(ApplicationDatabaseContext databaseContext, Guid batchId, string name, decimal discountPercent, decimal? stockMinimum,
+    private async Task<Guid> InsertRuleAsync(ApplicationDatabaseContext databaseContext, Guid batchId, string name, string discountType, decimal discountValue, decimal? stockMinimum,
                                              decimal? stockMaximum, Guid storeId, Guid channelId, Guid createdBy, CancellationToken cancellationToken)
     {
         var companyId = currentUser.CompanyId;
@@ -158,7 +173,7 @@ public sealed class ProductDiscountRepository(DatabaseSession databaseSession, I
         await databaseContext.Database.ExecuteSqlAsync($"""
             insert into promo.rules (company_id, id, name, discount_type, discount_value, target_type, stock_min, stock_max, starts_at, ends_at, priority, status,
                                      created_from, created_batch_id, created_by)
-            values ({companyId}, {ruleId}, {name}, {ProductDiscountRuleCodes.DiscountTypePercent}, {discountPercent}, {ProductDiscountRuleCodes.TargetTypeProduct},
+            values ({companyId}, {ruleId}, {name}, {discountType}, {discountValue}, {ProductDiscountRuleCodes.TargetTypeProduct},
                     {stockMinimum}, {stockMaximum}, now(), null, 0, {ProductDiscountRuleCodes.StatusPublished},
                     {ProductDiscountRuleCodes.CreatedFromProductDiscount}, {batchId}, {createdBy})
             """, cancellationToken);
@@ -177,19 +192,23 @@ public sealed class ProductDiscountRepository(DatabaseSession databaseSession, I
     }
 
     /// <summary>
-    /// The products that have at least one active size with stock in the store inside the range (a size with no stock row counts as stock 0, like the engine
+    /// The matching products with at least one active size inside the stock range, when one is given (a size with no stock row counts as stock 0, like the engine
     /// does), with the store's stock, sale price and current discount. Returned as a SELECT that other statements wrap.
     /// </summary>
     private (string Sql, int ParameterCount) BuildCandidateSql(StockRangeDiscountRequest request, SqlParameterList parameters)
     {
         var company = parameters.Add(currentUser.CompanyId);
         var store = parameters.Add(request.StoreId);
-        var minimum = parameters.Add(request.MinimumStock);
-        var maximum = parameters.Add(request.MaximumStock);
-        var brandFilter = request.BrandId is { } brandId ? $" and p.brand_id = {parameters.Add(brandId)}" : "";
+        var filters = new StringBuilder();
+        if (request.DepartmentId is { } departmentId) filters.Append($" and p.department_id = {parameters.Add(departmentId)}");
+        if (request.CategoryIds is { Count: > 0 }) filters.Append($" and p.category_id = any({parameters.Add(request.CategoryIds.ToArray())})");
+        if (request.BrandIds is { Count: > 0 }) filters.Append($" and p.brand_id = any({parameters.Add(request.BrandIds.ToArray())})");
+        if (request.MinimumStock is { } minimum) filters.Append($" and coalesce(sb.qty_on_hand, 0) >= {parameters.Add(minimum)}");
+        if (request.MaximumStock is { } maximum) filters.Append($" and coalesce(sb.qty_on_hand, 0) <= {parameters.Add(maximum)}");
         var sql = new StringBuilder($"""
             select p.id as "ProductId", p.code as "ProductCode", p.name as "ProductName", b.name as "BrandName", g.name as "GenderName", s.name as "SeasonName",
                    l.name as "LocationName", sum(coalesce(sb.qty_on_hand, 0)) as "StockQuantity", max(coalesce(so.sale_price, vp.sale_price)) as "SalePrice",
+                   min(coalesce(so.sale_price, vp.sale_price)) as "LowestSalePrice",
                    max(ep.discount_percent) as "DiscountPercent", coalesce(max(ep.discount_amount), 0) as "DiscountAmount"
             from catalog.products p
             join catalog.variants v on v.company_id = p.company_id and v.product_id = p.id and not v.is_deleted and v.status = 'ACTIVE'
@@ -202,8 +221,7 @@ public sealed class ProductDiscountRepository(DatabaseSession databaseSession, I
             left join master.genders g on g.company_id = p.company_id and g.id = p.gender_id
             left join master.seasons s on s.company_id = p.company_id and s.id = p.season_id
             left join master.locations l on l.company_id = p.company_id and l.id = p.location_id
-            where p.company_id = {company} and not p.is_deleted and p.status = 'ACTIVE'{brandFilter}
-              and coalesce(sb.qty_on_hand, 0) >= {minimum} and coalesce(sb.qty_on_hand, 0) <= {maximum}
+            where p.company_id = {company} and not p.is_deleted and p.status = 'ACTIVE'{filters}
             group by p.id, p.code, p.name, b.name, g.name, s.name, l.name
             """);
         return (sql.ToString(), 0);

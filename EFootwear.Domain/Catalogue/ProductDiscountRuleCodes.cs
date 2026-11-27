@@ -10,6 +10,8 @@ public static class ProductDiscountRuleCodes
     public const string CreatedFromProductDiscount = "PRODUCT_DISCOUNT";
 
     public const string DiscountTypePercent = "PERCENT";
+    /// <summary>Whole rupees off each piece.</summary>
+    public const string DiscountTypeAmount = "AMOUNT";
     public const string TargetTypeProduct = "PRODUCT";
     public const string StatusPublished = "PUBLISHED";
     public const string StatusCancelled = "CANCELLED";

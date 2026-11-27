@@ -29,13 +29,14 @@ public sealed class ProductDiscountService(
 {
     public Task<PagedResult<StockRangeDiscountRowResponse>> ListStockRangeCandidatesAsync(StockRangeDiscountRequest request, PageRequest pageRequest, CancellationToken cancellationToken)
     {
-        EnsureValid(request);
+        EnsureValidFilters(request);
         return productDiscountRepository.ListStockRangeCandidatesAsync(request, pageRequest.Normalized(), cancellationToken);
     }
 
     public async Task<ProductDiscountAppliedResponse> ApplyStockRangeDiscountAsync(StockRangeDiscountRequest request, CancellationToken cancellationToken)
     {
-        EnsureValid(request);
+        EnsureValidFilters(request);
+        EnsureValidDiscount(request);
         var batchId = request.ClientTransactionId ?? Guid.NewGuid();
         if (request.ClientTransactionId is not null && await productDiscountRepository.RuleBatchExistsAsync(batchId, cancellationToken))
             return AlreadyApplied(batchId);
@@ -43,7 +44,10 @@ public sealed class ProductDiscountService(
         var channelId = await RequirePointOfSaleChannelAsync(cancellationToken);
         var productIds = await productDiscountRepository.ListStockRangeCandidateProductIdsAsync(request, cancellationToken);
         if (productIds.Count == 0)
-            throw new DomainException(ErrorKind.Validation, "No product has stock in this range in the chosen store.");
+            throw new DomainException(ErrorKind.Validation, "No product matches these filters in the chosen store.");
+        if (request.DiscountType == ProductDiscountRuleCodes.DiscountTypeAmount
+            && await productDiscountRepository.AnyStockRangeCandidatePricedAtOrBelowAsync(request, (long)request.DiscountValue!.Value, cancellationToken))
+            throw new DomainException(ErrorKind.Validation, "The amount off is not below the price of every matching product. Lower the amount or narrow the filters.");
 
         await productDiscountRepository.RemoveProductsFromDiscountRulesAsync([request.StoreId], productIds, cancellationToken);
         var coveredProductCount = await productDiscountRepository.CreateStockRangeRuleAsync(batchId, request, channelId, currentUser.UserId, cancellationToken);
@@ -51,8 +55,8 @@ public sealed class ProductDiscountService(
         var conflictCount = await pricingEngineRepository.CountVariantsInConflictAsync(productIds, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
 
-        logger.LogInformation("Stock range discount {DiscountPercent}% (batch {BatchId}) on {ProductCount} products in store {StoreId} by user {UserId}",
-            request.DiscountPercent, batchId, coveredProductCount, request.StoreId, currentUser.UserId);
+        logger.LogInformation("Discount {DiscountType} {DiscountValue} (batch {BatchId}) on {ProductCount} products in store {StoreId} by user {UserId}",
+            request.DiscountType, request.DiscountValue, batchId, coveredProductCount, request.StoreId, currentUser.UserId);
         return new ProductDiscountAppliedResponse(batchId, coveredProductCount, 1, conflictCount, 0, 0, false);
     }
 
@@ -121,14 +125,25 @@ public sealed class ProductDiscountService(
         return new ProductDiscountAppliedResponse(batchId, productIds.Count, 1, conflictCount, restoredCount, skippedCount, false);
     }
 
-    private void EnsureValid(StockRangeDiscountRequest request)
+    private void EnsureValidFilters(StockRangeDiscountRequest request)
     {
         EnsureStoreIsAllowed(request.StoreId);
-        CataloguePriceRules.EnsureValidPercentage(request.DiscountPercent, "discount");
-        if (request.MinimumStock < 0 || request.MaximumStock < 0)
-            throw new DomainException(ErrorKind.Validation, "The stock range cannot be negative.");
-        if (request.MaximumStock < request.MinimumStock)
-            throw new DomainException(ErrorKind.Validation, "The highest stock cannot be lower than the lowest stock.");
+        CataloguePriceRules.EnsureValidStockRange(request.MinimumStock, request.MaximumStock);
+    }
+
+    private static void EnsureValidDiscount(StockRangeDiscountRequest request)
+    {
+        if (request.DiscountType is not (ProductDiscountRuleCodes.DiscountTypePercent or ProductDiscountRuleCodes.DiscountTypeAmount))
+            throw new DomainException(ErrorKind.Validation, "Choose a percentage or a fixed amount discount.");
+        if (request.DiscountValue is not { } value)
+            throw new DomainException(ErrorKind.Validation, "Enter the discount.");
+        if (request.DiscountType == ProductDiscountRuleCodes.DiscountTypePercent)
+        {
+            CataloguePriceRules.EnsureValidPercentage(value, "discount");
+            return;
+        }
+        if (value < 1 || value != decimal.Truncate(value) || value > CataloguePriceRules.MaximumPrice)
+            throw new DomainException(ErrorKind.Validation, "The amount off must be a whole number of rupees above zero.");
     }
 
     private void EnsureStoreIsAllowed(Guid storeId)
