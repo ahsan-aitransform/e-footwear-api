@@ -296,6 +296,24 @@ public class ProductApiTests(ApiTestEnvironment environment)
     }
 
     [Fact]
+    public async Task Margin_and_markup_are_sent_to_the_company_owner_only()
+    {
+        var (scenario, lookups) = await NewCompanyAsync();
+        await CreateProductAsync(scenario.OwnerClient, lookups, "Sandal", Variant("27", 550, 999));
+        var manager = await scenario.SignInManagerWithPermissionsAsync(PermissionCodes.Products.ViewProducts.View);
+
+        async Task<JsonElement> FirstRowAsync(HttpClient client) =>
+            (await OwnerCompanyScenario.ReadJsonAsync(await client.GetAsync($"{ProductsUrl}/{ApiRoutes.Products.Variants}"))).GetProperty("items")[0];
+        var forOwner = await FirstRowAsync(scenario.OwnerClient);
+        var forManager = await FirstRowAsync(manager);
+
+        Assert.Equal(44.94m, forOwner.GetProperty("marginPercent").GetDecimal());
+        Assert.Equal(JsonValueKind.Number, forOwner.GetProperty("markupPercent").ValueKind);
+        Assert.Equal(JsonValueKind.Null, forManager.GetProperty("marginPercent").ValueKind);
+        Assert.Equal(JsonValueKind.Null, forManager.GetProperty("markupPercent").ValueKind);
+    }
+
+    [Fact]
     public async Task A_person_who_may_view_products_cannot_create_or_delete_them()
     {
         var (scenario, lookups) = await NewCompanyAsync();

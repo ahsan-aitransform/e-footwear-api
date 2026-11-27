@@ -14,10 +14,13 @@ namespace EFootwear.BLL.Catalogue.Services;
 /// </summary>
 public sealed class ProductListingService(IProductListingRepository productListingRepository, ICurrentUser currentUser)
 {
-    public Task<PagedResult<ProductVariantListItemResponse>> ListVariantRowsAsync(ProductListFilter filter, PageRequest pageRequest, CancellationToken cancellationToken)
+    public async Task<PagedResult<ProductVariantListItemResponse>> ListVariantRowsAsync(ProductListFilter filter, PageRequest pageRequest, CancellationToken cancellationToken)
     {
         EnsureStoreIsAllowed(filter.StoreId);
-        return productListingRepository.ListVariantRowsAsync(filter, pageRequest.Normalized(), cancellationToken);
+        var page = await productListingRepository.ListVariantRowsAsync(filter, pageRequest.Normalized(), cancellationToken);
+        if (ProductPricingFormulas.CanViewMargin(currentUser.RoleCode)) return page;
+        var items = page.Items.Select(row => row with { MarginPercent = null, MarkupPercent = null }).ToList();
+        return new PagedResult<ProductVariantListItemResponse>(items, page.PageNumber, page.PageSize, page.TotalItemCount);
     }
 
     /// <summary>The product picker of the screens that work on one product or one size: active sizes found by name, code or barcode, without prices.</summary>
