@@ -1,3 +1,4 @@
+using EFootwear.DAL.Common;
 using EFootwear.BLL.Abstractions;
 using EFootwear.BLL.Promotions.Abstractions;
 using EFootwear.BLL.Promotions.Contracts;
@@ -203,10 +204,18 @@ public sealed class PromotionRuleRepository(DatabaseSession databaseSession, ICu
         Guid ruleId, string? barcode, Guid? categoryId, Guid? brandId, decimal percentage, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
-        var (filterColumn, filterValue) = barcode is not null
-            ? ("v.barcode", (object)barcode)
-            : categoryId is not null ? ("p.category_id", (object)categoryId.Value) : ("p.brand_id", (object)brandId!.Value);
         var companyId = currentUser.CompanyId;
+        string filterColumn;
+        object filterValue;
+        if (barcode is not null)
+        {
+            // one size by its barcode; a product code adds every size of the product
+            var storedBarcode = await BarcodeMatching.FindStoredBarcodeAsync(databaseContext, companyId, barcode, cancellationToken);
+            var isBarcode = await databaseContext.ProductVariants.AsNoTracking()
+                .AnyAsync(variant => variant.CompanyId == companyId && !variant.IsDeleted && variant.Barcode == storedBarcode, cancellationToken);
+            (filterColumn, filterValue) = isBarcode ? ("v.barcode", storedBarcode) : ("lower(p.code)", barcode.ToLowerInvariant());
+        }
+        else (filterColumn, filterValue) = categoryId is not null ? ("p.category_id", (object)categoryId.Value) : ("p.brand_id", (object)brandId!.Value);
 
         // The count names only the placeholders it uses (0 company, 1 the barcode, category or brand).
         var matched = await databaseContext.Database.SqlQueryRaw<long>($$"""

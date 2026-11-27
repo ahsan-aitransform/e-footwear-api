@@ -4,18 +4,21 @@ using EFootwear.Domain.Security.Permissions;
 
 namespace EFootwear.Tests.Security;
 
-/// <summary>Managing prices and discounts is the company owner's alone.</summary>
+/// <summary>Managing prices and discounts, and the stock of all stores, is the company owner's alone.</summary>
 public class OwnerOnlyPermissionsTests
 {
     [Theory]
+    [InlineData("PRODUCTS.PRODUCTS_STOCK_WITH_SIZES_ON_MULTIPLE_STORES.VIEW")]
     [InlineData("PRICE_CHANGE")]
     [InlineData("DISCOUNT_MANUAL")]
     [InlineData("INVOICE.NEW_SALE.GIVE_DISCOUNT")]
     [InlineData("PRODUCTS.NEW_PRODUCT.CHANGE_SELLING_PRICE")]
     [InlineData("PRODUCTS.CHANGE_DISCOUNTS.EDIT")]
+    [InlineData("PRODUCTS.CHANGE_DISCOUNTS.VIEW")]
+    [InlineData("PRODUCTS.PRICE_BANDS.EDIT")]
     [InlineData("SETTINGS.SPECIAL_OFFERS.ADD")]
     [InlineData("PROMOTIONS.PROMOTION_CONFLICT_RESOLUTION.APPROVE")]
-    public void Price_and_discount_management_is_owner_only_and_cannot_be_granted(string permissionCode)
+    public void An_owner_only_permission_cannot_be_granted(string permissionCode)
     {
         Assert.True(OwnerOnlyPermissions.Contains(permissionCode));
         Assert.Throws<DomainException>(() => PermissionGrantRules.EnsureNotOwnerOnly([permissionCode]));
@@ -23,10 +26,11 @@ public class OwnerOnlyPermissionsTests
 
     [Theory]
     [InlineData("PRODUCTS.NEW_PRODUCT.ADD")]
-    [InlineData("PRODUCTS.CHANGE_DISCOUNTS.VIEW")]
+    [InlineData("PRODUCTS.PRICE_BANDS.VIEW")]
+    [InlineData("PRODUCTS.PRICE_CHECK.VIEW")]
     [InlineData("SALE_CREATE")]
     [InlineData("INVOICE.NEW_SALE.ADD")]
-    public void Selling_adding_products_and_looking_at_discounts_stay_open_to_others(string permissionCode) =>
+    public void Selling_adding_products_and_looking_up_prices_stay_open_to_others(string permissionCode) =>
         Assert.False(OwnerOnlyPermissions.Contains(permissionCode));
 
     [Fact]

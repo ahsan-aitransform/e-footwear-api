@@ -122,7 +122,7 @@ public class ProductReadModelsApiTests(ApiTestEnvironment environment)
     // ---------- Products Stock with Sizes On Multiple Stores ----------
 
     [Fact]
-    public async Task Stock_on_several_stores_lists_each_size_per_store_hides_empty_stock_and_respects_the_users_stores()
+    public async Task Stock_on_several_stores_lists_each_size_per_store_hides_empty_stock_and_is_for_the_owner_only()
     {
         var (scenario, lookups) = await NewCompanyAsync();
         var secondStore = await scenario.CreateStoreAsync("S2");
@@ -139,10 +139,8 @@ public class ProductReadModelsApiTests(ApiTestEnvironment environment)
         Assert.Equal(0, (await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{Url(ApiRoutes.Products.StockByStore)}?searchText=zzz"))).GetProperty("totalCount").GetInt32());
 
         var manager = await scenario.SignInUserWithPermissionsAsync("STORE_MANAGER", [scenario.FirstStoreId], PermissionCodes.Products.ProductsStockWithSizesOnMultipleStores.View);
-        var mine = await OwnerCompanyScenario.ReadJsonAsync(await manager.GetAsync(Url(ApiRoutes.Products.StockByStore)));
-        var row = Assert.Single(mine.GetProperty("items").EnumerateArray());
-        Assert.Equal(scenario.FirstStoreId, row.GetProperty("storeId").GetGuid());
-        Assert.Equal(4m, row.GetProperty("stockQuantity").GetDecimal());
+        // even a grant left over in the database does not open it for anyone else
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await manager.GetAsync(Url(ApiRoutes.Products.StockByStore)));
     }
 
     [Fact]

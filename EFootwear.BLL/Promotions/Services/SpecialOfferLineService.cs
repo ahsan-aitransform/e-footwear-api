@@ -37,14 +37,14 @@ public sealed class SpecialOfferLineService(
 
         var barcode = VariantRules.NormalizeBarcode(request.Barcode);
         var sources = (barcode.Length > 0 ? 1 : 0) + (request.CategoryId is not null ? 1 : 0) + (request.BrandId is not null ? 1 : 0);
-        if (sources != 1) throw new DomainException(ErrorKind.Validation, "Scan one barcode, or choose one category, or choose one company.");
+        if (sources != 1) throw new DomainException(ErrorKind.Validation, "Scan one barcode or product code, or choose one category, or choose one company.");
         if (barcode.Length > 0) VariantRules.EnsureValidBarcode(barcode);
 
         var (matchedCount, addedCount) = await promotionRuleRepository.AddLinesAsync(
             offerId, barcode.Length > 0 ? barcode : null, request.CategoryId, request.BrandId, request.DiscountPercent!.Value, cancellationToken);
         if (matchedCount == 0)
             throw new DomainException(barcode.Length > 0 ? ErrorKind.NotFound : ErrorKind.Validation,
-                                      barcode.Length > 0 ? $"No product has the barcode {barcode}." : "That category or company has no products yet.");
+                                      barcode.Length > 0 ? $"No product has the barcode or product code {barcode}." : "That category or company has no products yet.");
 
         if (addedCount > 0) await pricingEngineRepository.RefreshEffectivePricesAsync(cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);

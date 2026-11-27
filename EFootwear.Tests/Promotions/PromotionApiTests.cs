@@ -544,7 +544,7 @@ public class PromotionApiTests(ApiTestEnvironment environment)
     }
 
     [Fact]
-    public async Task Choosing_the_winner_of_a_conflict_needs_the_approve_action_and_the_restricted_code()
+    public async Task Only_the_owner_chooses_the_winner_of_a_conflict()
     {
         var shop = await NewShopAsync(environment);
         var scenario = shop.Scenario;
@@ -553,39 +553,27 @@ public class PromotionApiTests(ApiTestEnvironment environment)
         var conflict = (await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(ConflictsUrl))).GetProperty("items")[0];
         var url = ResolveConflictUrl(conflict.GetProperty("groupId").GetGuid());
         var body = new { chosenRuleId = conflict.GetProperty("candidates")[0].GetProperty("ruleId").GetGuid() };
-        var viewOnly = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId], PermissionCodes.Promotions.PromotionConflictResolution.View);
-        var screenOnly = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId],
-            PermissionCodes.Promotions.PromotionConflictResolution.View, PermissionCodes.Promotions.PromotionConflictResolution.Approve);
-        var restrictedOnly = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId],
-            PermissionCodes.RestrictedOperations.Promotions.PromoConflictResolve);
-        var allowed = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId],
+        var manager = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId],
             PermissionCodes.Promotions.PromotionConflictResolution.View, PermissionCodes.Promotions.PromotionConflictResolution.Approve,
             PermissionCodes.RestrictedOperations.Promotions.PromoConflictResolve);
 
-        Assert.Equal(HttpStatusCode.OK, (await viewOnly.GetAsync(ConflictsUrl)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await viewOnly.PostAsJsonAsync(url, body)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await screenOnly.PostAsJsonAsync(url, body)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await restrictedOnly.PostAsJsonAsync(url, body)).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await allowed.PostAsJsonAsync(url, body)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync(ConflictsUrl)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync(url, body)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await scenario.OwnerClient.PostAsJsonAsync(url, body)).StatusCode);
     }
 
     [Fact]
-    public async Task A_person_of_one_store_cannot_make_a_promotion_for_another_store_or_for_every_store()
+    public async Task Nobody_but_the_owner_makes_or_removes_a_promotion_whatever_was_granted()
     {
         var shop = await NewShopAsync(environment);
         var scenario = shop.Scenario;
-        var secondStoreId = await scenario.CreateStoreAsync("S2");
-        var manager = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [secondStoreId], AllPromotionPermissions);
-        var offer = await CreateSpecialOfferAsync(scenario.OwnerClient, "Owner offer for every store");
-        var firstStoreSale = await CreateSaleOnStoresAsync(scenario.OwnerClient, "First store sale", 10, scenario.FirstStoreId);
+        var manager = await scenario.SignInUserWithPermissionsAsync(RoleCodes.StoreManager, [scenario.FirstStoreId], AllPromotionPermissions);
+        var sale = await CreateSaleOnStoresAsync(scenario.OwnerClient, "Owner sale", 10, scenario.FirstStoreId);
 
-        Assert.Equal(HttpStatusCode.Created, (await manager.PostAsJsonAsync(SalesOnStoresUrl, RuleBody("My store", 10, [secondStoreId]))).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync(SalesOnStoresUrl, RuleBody("Other store", 10, [scenario.FirstStoreId]))).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync(SpecialOffersUrl, RuleBody("Every store", null))).StatusCode);
-        Assert.Equal(HttpStatusCode.Created, (await manager.PostAsJsonAsync(SpecialOffersUrl, RuleBody("My store offer", null, [secondStoreId]))).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync(SpecialOfferLinesUrl(offer.GetProperty("id").GetGuid()), new { barcode = shop.FirstBarcode, discountPercent = 10m })).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await manager.DeleteAsync(SaleOnStoresUrl(firstStoreSale.GetProperty("id").GetGuid()))).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync(DealsUrl, DealBody("Deal", [DealLine(shop.FirstVariantId, 1, 800)]))).StatusCode);   // a deal belongs to every store
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync(SalesOnStoresUrl, RuleBody("My store", 10, [scenario.FirstStoreId]))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync(SpecialOffersUrl, RuleBody("My store offer", null, [scenario.FirstStoreId]))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.DeleteAsync(SaleOnStoresUrl(sale.GetProperty("id").GetGuid()))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsJsonAsync(DealsUrl, DealBody("Deal", [DealLine(shop.FirstVariantId, 1, 800)]))).StatusCode);
     }
 
     [Fact]

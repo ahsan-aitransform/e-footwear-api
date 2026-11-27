@@ -22,6 +22,11 @@ public sealed class ProductInsightsController(ProductListingService productListi
     public async Task<ActionResult<VariantPriceLookupResponse>> CheckPrice([FromQuery] string? barcode, [FromQuery] Guid? storeId, CancellationToken cancellationToken) =>
         await productListingService.GetPriceLookupAsync(barcode, storeId, cancellationToken);
 
+    /// <summary>?code=... : the sizes of a product, to choose one when a product code was typed. Names and codes only, so open to every company user.</summary>
+    [HttpGet(ApiRoutes.Products.SizesByCode)]
+    public async Task<ActionResult<IReadOnlyList<ProductLookupResponse>>> ListSizesByCode([FromQuery] string? code, CancellationToken cancellationToken) =>
+        Ok(await productListingService.ListSizesByProductCodeAsync(code, cancellationToken));
+
     /// <summary>?storeId=...&amp;barcode=... (or productId)&amp;fromDate=2026-01-01&amp;toDate=2026-01-31&amp;detail=true</summary>
     [HttpGet(ApiRoutes.Products.Ledger)]
     [RequirePermission(PermissionCodes.Products.ProductLedger.View)]

@@ -275,7 +275,7 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
             ItemSelectSql + """
                and (position(lower({2}) in lower(pr.name)) > 0 or position(lower({2}) in lower(pr.code)) > 0 or position(lower({2}) in lower(va.barcode)) > 0
                     or position(lower({2}) in lower(coalesce(pr.name_ur, ''))) > 0)
-             order by pr.name, va.size_code
+             order by (lower(pr.code) = lower({2})) desc, pr.name, va.size_code
              limit {3}
             """, currentUser.CompanyId, storeId, searchText, limit).ToListAsync(cancellationToken);
         return rows.Select(ToItemResponse).ToList();

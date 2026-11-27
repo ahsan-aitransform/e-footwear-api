@@ -12,6 +12,8 @@ public interface IProductListingRepository
     Task<PagedResult<ProductVariantListItemResponse>> ListVariantRowsAsync(ProductListFilter filter, PageRequest pageRequest, CancellationToken cancellationToken);
     Task<VariantPriceLookupResponse?> FindPriceLookupAsync(string barcode, Guid? storeId, CancellationToken cancellationToken);
     Task<Guid?> FindProductIdByBarcodeAsync(string barcode, CancellationToken cancellationToken);
+    /// <summary>The active sizes of the product with this code (whatever the capital letters); empty when no product has it.</summary>
+    Task<IReadOnlyList<ProductLookupResponse>> ListSizesByProductCodeAsync(string productCode, CancellationToken cancellationToken);
     Task<PagedResult<ProductStockByStoreRowResponse>> ListStockByStoreAsync(PageRequest pageRequest, CancellationToken cancellationToken);
     Task<PagedResult<ProductReportRowResponse>> ListProductReportAsync(ProductReportFilter filter, PageRequest pageRequest, CancellationToken cancellationToken);
     Task<BarcodeLabelData?> FindLabelDataAsync(Guid variantId, Guid? storeId, CancellationToken cancellationToken);

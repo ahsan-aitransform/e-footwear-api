@@ -323,6 +323,7 @@ public static class ApiRoutes
         public const string PriceHistory = "{productId:guid}/price-history";
         public const string Image = "{productId:guid}/images/{slot:int}";
         public const string PriceCheck = "price-check";
+        public const string SizesByCode = "sizes-by-code";
         public const string Ledger = "ledger";
         public const string StockByStore = "stock-by-store";
         public const string Report = "report";

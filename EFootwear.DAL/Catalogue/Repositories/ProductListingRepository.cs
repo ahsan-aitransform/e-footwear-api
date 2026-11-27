@@ -137,9 +137,43 @@ public sealed class ProductListingRepository(DatabaseSession databaseSession, IC
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
         var storedBarcode = await BarcodeMatching.FindStoredBarcodeAsync(databaseContext, companyId, barcode, cancellationToken);
-        return await databaseContext.ProductVariants.AsNoTracking()
+        var productId = await databaseContext.ProductVariants.AsNoTracking()
             .Where(variant => variant.CompanyId == companyId && variant.Barcode == storedBarcode && !variant.IsDeleted)
             .Select(variant => (Guid?)variant.ProductId).FirstOrDefaultAsync(cancellationToken);
+        if (productId is not null) return productId;
+
+        // a product code means the whole product, however many sizes it has
+        var lowerCode = barcode.ToLowerInvariant();
+        return await databaseContext.Products.AsNoTracking()
+            .Where(product => product.CompanyId == companyId && !product.IsDeleted && product.Code.ToLower() == lowerCode)
+            .Select(product => (Guid?)product.Id).FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProductLookupResponse>> ListSizesByProductCodeAsync(string productCode, CancellationToken cancellationToken)
+    {
+        var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
+        var companyId = currentUser.CompanyId;
+        var lowerCode = productCode.ToLowerInvariant();
+        var rows = await (from variant in databaseContext.ProductVariants.AsNoTracking()
+                          join product in databaseContext.Products.AsNoTracking()
+                              on new { variant.CompanyId, Id = variant.ProductId } equals new { product.CompanyId, product.Id }
+                          where variant.CompanyId == companyId && !variant.IsDeleted && !product.IsDeleted && product.Code.ToLower() == lowerCode
+                                && variant.Status == ProductStatusCodes.Active && product.Status == ProductStatusCodes.Active
+                          select new { ProductId = product.Id, VariantId = variant.Id, ProductCode = product.Code, ProductName = product.Name, variant.Barcode, variant.SizeCode, variant.ColorId })
+            .ToListAsync(cancellationToken);
+        var colorIds = rows.Where(row => row.ColorId is not null).Select(row => row.ColorId!.Value).Distinct().ToArray();
+        var colors = colorIds.Length == 0 ? [] : await databaseContext.Database.SqlQuery<ColorNameRow>(
+            $"select id as \"Id\", name as \"Name\" from master.colors where company_id = {companyId} and id = any({colorIds})").ToListAsync(cancellationToken);
+        var colorNames = colors.ToDictionary(color => color.Id, color => color.Name);
+        return rows.Select(row => new ProductLookupResponse(row.ProductId, row.VariantId, row.ProductCode, row.ProductName, row.Barcode, row.SizeCode,
+                row.ColorId is { } colorId ? colorNames.GetValueOrDefault(colorId) : null, null))
+            .OrderBy(size => size.ColorName).ThenBy(size => size.SizeCode.Length).ThenBy(size => size.SizeCode).ToList();
+    }
+
+    private sealed class ColorNameRow
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
     }
 
     public async Task<PagedResult<ProductStockByStoreRowResponse>> ListStockByStoreAsync(PageRequest pageRequest, CancellationToken cancellationToken)

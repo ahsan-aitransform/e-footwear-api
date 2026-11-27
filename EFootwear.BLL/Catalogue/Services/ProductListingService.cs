@@ -42,14 +42,21 @@ public sealed class ProductListingService(IProductListingRepository productListi
         return new PagedResult<ProductLookupResponse>(items, page.PageNumber, page.PageSize, page.TotalItemCount);
     }
 
+    /// <summary>For a screen where a product code was typed instead of a size's barcode: the sizes to choose from, without prices or stock.</summary>
+    public async Task<IReadOnlyList<ProductLookupResponse>> ListSizesByProductCodeAsync(string? productCode, CancellationToken cancellationToken)
+    {
+        var code = VariantRules.NormalizeBarcode(productCode);
+        return code.Length == 0 ? [] : await productListingRepository.ListSizesByProductCodeAsync(code, cancellationToken);
+    }
+
     public async Task<VariantPriceLookupResponse> GetPriceLookupAsync(string? barcode, Guid? storeId, CancellationToken cancellationToken)
     {
         var normalizedBarcode = VariantRules.NormalizeBarcode(barcode);
         if (normalizedBarcode.Length == 0)
-            throw new DomainException(ErrorKind.Validation, "Scan or type a barcode.");
+            throw new DomainException(ErrorKind.Validation, "Scan or type a barcode or product code.");
         EnsureStoreIsAllowed(storeId);
         return await productListingRepository.FindPriceLookupAsync(normalizedBarcode, storeId, cancellationToken)
-               ?? throw new DomainException(ErrorKind.NotFound, $"No product has the barcode {normalizedBarcode}.");
+               ?? throw new DomainException(ErrorKind.NotFound, $"No size has the barcode or product code {normalizedBarcode}.");
     }
 
     public Task<PagedResult<ProductStockByStoreRowResponse>> ListStockByStoreAsync(PageRequest pageRequest, CancellationToken cancellationToken) =>

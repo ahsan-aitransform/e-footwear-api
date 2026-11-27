@@ -30,7 +30,7 @@ public static class PermissionGrantRules
         var ownerOnly = permissionCodes.Where(OwnerOnlyPermissions.Contains).Take(5).ToList();
         if (ownerOnly.Count > 0)
             throw new DomainException(ErrorKind.Validation,
-                $"Only the company owner can manage prices and discounts. These cannot be granted: {string.Join(", ", ownerOnly)}.");
+                $"These permissions belong to the company owner only and cannot be granted: {string.Join(", ", ownerOnly)}.");
     }
 
     public static void EnsureCanGrant(IReadOnlySet<string> codesHeldByCaller, IReadOnlyCollection<string> codesBeingAdded)

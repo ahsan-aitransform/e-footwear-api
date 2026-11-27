@@ -288,7 +288,7 @@ public class ProductPricingApiTests(ApiTestEnvironment environment)
         var change = OldToNew(999, 1000, storeId: scenario.FirstStoreId);
 
         TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await manager.PostAsJsonAsync(Url(ApiRoutes.ProductPrices.OldToNew), change));
-        TestScenarioBuilder.AssertStatus(HttpStatusCode.OK, await manager.PostAsJsonAsync(Url(ApiRoutes.ProductPrices.OldToNewPreview), change));
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await manager.PostAsJsonAsync(Url(ApiRoutes.ProductPrices.OldToNewPreview), change));
         TestScenarioBuilder.AssertStatus(HttpStatusCode.OK, await scenario.OwnerClient.PostAsJsonAsync(Url(ApiRoutes.ProductPrices.OldToNew), change));
     }
 }

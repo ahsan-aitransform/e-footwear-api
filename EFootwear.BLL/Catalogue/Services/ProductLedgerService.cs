@@ -36,7 +36,7 @@ public sealed class ProductLedgerService(
             if (barcode.Length == 0)
                 throw new DomainException(ErrorKind.Validation, "Scan a barcode or choose a product.");
             productId = await productListingRepository.FindProductIdByBarcodeAsync(barcode, cancellationToken)
-                        ?? throw new DomainException(ErrorKind.NotFound, $"No product has the barcode {barcode}.");
+                        ?? throw new DomainException(ErrorKind.NotFound, $"No product has the barcode or product code {barcode}.");
         }
 
         return await productLedgerRepository.GetLedgerAsync(productId.Value, query.StoreId, query.FromDate, query.ToDate, query.Detail, cancellationToken)
