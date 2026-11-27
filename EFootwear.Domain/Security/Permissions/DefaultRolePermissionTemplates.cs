@@ -40,7 +40,7 @@ public static class DefaultRolePermissionTemplates
             codes.AddRange(CodesOf(moduleCode, screenCode: null, [PermissionActionCodes.Delete], invertActions: true));
 
         // The staff screens and the salary sheets used to be part of the combined people module the store manager had (everything except delete).
-        foreach (var staffScreenCode in new[] { "NEW_STAFF", "VIEW_STAFF", "SEARCH_STAFF", "STAFF_ACCOUNT_DETAIL", "NEW_SALARY_SHEET", "VIEW_SALARY_SHEET" })
+        foreach (var staffScreenCode in new[] { "NEW_STAFF", "VIEW_STAFF", "STAFF_ACCOUNT_DETAIL", "NEW_SALARY_SHEET", "VIEW_SALARY_SHEET" })
             codes.AddRange(CodesOf("HUMAN_RESOURCES", staffScreenCode, [PermissionActionCodes.Delete], invertActions: true));
 
         codes.AddRange(CodesOf("USER_ACCOUNT", "CREATE_USER", [PermissionActionCodes.View, PermissionActionCodes.Add]));
@@ -66,7 +66,6 @@ public static class DefaultRolePermissionTemplates
         codes.AddRange(CodesOf("PRODUCTS", "SEARCH_PRODUCT"));
         codes.AddRange(CodesOf("PRODUCTS", "PRICE_CHECK"));
         codes.AddRange(CodesOf("PRODUCTS", "VIEW_PRODUCTS", [PermissionActionCodes.View]));
-        codes.AddRange(CodesOf("CUSTOMERS", "SEARCH_CUSTOMER"));
         codes.AddRange(CodesOf("CUSTOMERS", "VIEW_CUSTOMERS", [PermissionActionCodes.View]));
         codes.AddRange(CodesOf("CUSTOMERS", "NEW_CUSTOMER", [PermissionActionCodes.View, PermissionActionCodes.Add]));
         codes.AddRange(CodesOf("USER_ACCOUNT", "CHANGE_PASSWORD"));
@@ -83,13 +82,10 @@ public static class DefaultRolePermissionTemplates
         codes.AddRange(CodesOf("EXPENSES", screenCode: null, [PermissionActionCodes.Delete], invertActions: true));
         var readAndPrint = new[] { PermissionActionCodes.View, PermissionActionCodes.Print, PermissionActionCodes.Export };
         codes.AddRange(CodesOf("CUSTOMERS", "VIEW_CUSTOMERS", readAndPrint));
-        codes.AddRange(CodesOf("CUSTOMERS", "SEARCH_CUSTOMER"));
         codes.AddRange(CodesOf("CUSTOMERS", "CUSTOMER_ACCOUNT_DETAIL", readAndPrint));
         codes.AddRange(CodesOf("VENDORS", "VIEW_VENDORS", readAndPrint));
-        codes.AddRange(CodesOf("VENDORS", "SEARCH_VENDOR"));
         codes.AddRange(CodesOf("VENDORS", "VENDOR_ACCOUNT_DETAIL", readAndPrint));
         codes.AddRange(CodesOf("HUMAN_RESOURCES", "VIEW_STAFF", readAndPrint));
-        codes.AddRange(CodesOf("HUMAN_RESOURCES", "SEARCH_STAFF"));
         codes.AddRange(CodesOf("HUMAN_RESOURCES", "STAFF_ACCOUNT_DETAIL", readAndPrint));
         codes.AddRange(CodesOf("INVOICE", "VIEW_INVOICES", [PermissionActionCodes.View, PermissionActionCodes.Print, PermissionActionCodes.Export]));
         codes.AddRange(CodesOf("HUMAN_RESOURCES", "SALARY_PAYMENTS", [PermissionActionCodes.View, PermissionActionCodes.Print, PermissionActionCodes.Export]));

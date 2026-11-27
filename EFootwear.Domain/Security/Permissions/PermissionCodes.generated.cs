@@ -216,11 +216,6 @@ public static class PermissionCodes
             public const string Print = "CUSTOMERS.VIEW_CUSTOMERS.PRINT";
             public const string Export = "CUSTOMERS.VIEW_CUSTOMERS.EXPORT";
         }
-        /// <summary>Search Customer</summary>
-        public static class SearchCustomer
-        {
-            public const string View = "CUSTOMERS.SEARCH_CUSTOMER.VIEW";
-        }
         /// <summary>Customer Account Detail</summary>
         public static class CustomerAccountDetail
         {
@@ -1257,11 +1252,6 @@ public static class PermissionCodes
             public const string Print = "VENDORS.VIEW_VENDORS.PRINT";
             public const string Export = "VENDORS.VIEW_VENDORS.EXPORT";
         }
-        /// <summary>Search Vendor</summary>
-        public static class SearchVendor
-        {
-            public const string View = "VENDORS.SEARCH_VENDOR.VIEW";
-        }
         /// <summary>Vendor Account Detail</summary>
         public static class VendorAccountDetail
         {
@@ -1368,11 +1358,6 @@ public static class PermissionCodes
             public const string Delete = "HUMAN_RESOURCES.VIEW_STAFF.DELETE";
             public const string Print = "HUMAN_RESOURCES.VIEW_STAFF.PRINT";
             public const string Export = "HUMAN_RESOURCES.VIEW_STAFF.EXPORT";
-        }
-        /// <summary>Search Staff</summary>
-        public static class SearchStaff
-        {
-            public const string View = "HUMAN_RESOURCES.SEARCH_STAFF.VIEW";
         }
         /// <summary>Staff Account Detail</summary>
         public static class StaffAccountDetail

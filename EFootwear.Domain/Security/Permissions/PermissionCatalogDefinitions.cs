@@ -60,7 +60,6 @@ internal static class PermissionCatalogDefinitions
         builder.Module("CUSTOMERS", "Customers")
             .Screen("NEW_CUSTOMER", "New Customer", PermissionActionSets.Entry)
             .Screen("VIEW_CUSTOMERS", "View Customers", PermissionActionSets.List)
-            .Screen("SEARCH_CUSTOMER", "Search Customer", PermissionActionSets.ViewOnly)
             .Screen("CUSTOMER_ACCOUNT_DETAIL", "Customer Account Detail", PermissionActionSets.List)
             .Screen("PROMISE", "Promise", PermissionActionSets.Entry);
 
@@ -199,7 +198,6 @@ internal static class PermissionCatalogDefinitions
         builder.Module("VENDORS", "Vendors")
             .Screen("NEW_VENDOR", "New Vendor", PermissionActionSets.Entry)
             .Screen("VIEW_VENDORS", "View Vendors", PermissionActionSets.List)
-            .Screen("SEARCH_VENDOR", "Search Vendor", PermissionActionSets.ViewOnly)
             .Screen("VENDOR_ACCOUNT_DETAIL", "Vendor Account Detail", PermissionActionSets.List)
             .Screen("VENDOR_MANAGEMENT", "Vendor Management", PermissionActionSets.Entry)
             .Screen("VENDOR_PAYMENT_SCHEDULE", "Vendor Payment Schedule", PermissionActionSets.Entry)
@@ -214,7 +212,6 @@ internal static class PermissionCatalogDefinitions
         builder.Module("HUMAN_RESOURCES", "Human Resources")
             .Screen("NEW_STAFF", "New Staff", PermissionActionSets.Entry)
             .Screen("VIEW_STAFF", "View Staff", PermissionActionSets.List)
-            .Screen("SEARCH_STAFF", "Search Staff", PermissionActionSets.ViewOnly)
             .Screen("STAFF_ACCOUNT_DETAIL", "Staff Account Detail", PermissionActionSets.List)
             .Screen("NEW_SALARY_SHEET", "New Salary Sheet", PermissionActionSets.Entry)
             .Screen("VIEW_SALARY_SHEET", "View Salary Sheet", PermissionActionSets.List)
