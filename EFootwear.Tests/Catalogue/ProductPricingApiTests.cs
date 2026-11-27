@@ -126,6 +126,11 @@ public class ProductPricingApiTests(ApiTestEnvironment environment)
         Assert.Equal(1, await CountAsync([lookups.CategoryId, Guid.NewGuid()], [Guid.NewGuid(), lookups.BrandId]));
         Assert.Equal(0, await CountAsync([Guid.NewGuid()], []));
         Assert.Equal(0, await CountAsync([lookups.CategoryId], [Guid.NewGuid()]));
+        // before a percentage is typed the preview already lists the matching sizes, with the price unchanged
+        var listed = await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, url, new { categoryIds = new[] { lookups.CategoryId } });
+        var row = Assert.Single(listed.GetProperty("items").EnumerateArray());
+        Assert.Equal(999, row.GetProperty("currentPrice").GetInt64());
+        Assert.Equal(999, row.GetProperty("newPrice").GetInt64());
         // an old screen still sending one categoryId must not be read as "every category"
         TestScenarioBuilder.AssertStatus(HttpStatusCode.BadRequest,
             await scenario.OwnerClient.PostAsJsonAsync(url, new { categoryId = Guid.NewGuid(), increasePercent = 10m }));

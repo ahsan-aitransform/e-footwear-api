@@ -31,9 +31,11 @@ public sealed class BulkPriceChangeService(
         return bulkPriceRepository.PreviewOldToNewAsync(request, pageRequest.Normalized(), cancellationToken);
     }
 
+    /// <summary>Without a percentage the preview lists the matching sizes with their price unchanged; applying always needs one.</summary>
     public Task<PagedResult<PriceChangeRowResponse>> PreviewPercentageAsync(PercentagePriceChangeRequest request, PageRequest pageRequest, CancellationToken cancellationToken)
     {
-        EnsureValid(request);
+        if (request is { IncreasePercent: null, DecreasePercent: null }) EnsureStoreIsAllowed(request.StoreId);
+        else EnsureValid(request);
         return bulkPriceRepository.PreviewPercentageAsync(request, pageRequest.Normalized(), cancellationToken);
     }
 

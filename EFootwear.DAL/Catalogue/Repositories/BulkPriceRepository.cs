@@ -27,6 +27,9 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
 
     public Task<PagedResult<PriceChangeRowResponse>> PreviewPercentageAsync(PercentagePriceChangeRequest request, PageRequest pageRequest, CancellationToken cancellationToken)
     {
+        if (request is { IncreasePercent: null, DecreasePercent: null })
+            return PreviewAsync(request.StoreId, request.DepartmentId, request.CategoryIds, request.BrandIds, PriceTypeCodes.Sale, pageRequest,
+                (_, _) => "true", (_, current) => current, cancellationToken);
         var multiplier = request.IncreasePercent is { } increase ? 100m + increase : 100m - request.DecreasePercent!.Value;
         return PreviewAsync(request.StoreId, request.DepartmentId, request.CategoryIds, request.BrandIds, PriceTypeCodes.Sale, pageRequest,
             (parameters, current) => PercentageCondition(parameters, current, multiplier),
