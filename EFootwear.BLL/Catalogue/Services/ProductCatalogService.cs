@@ -48,6 +48,15 @@ public sealed class ProductCatalogService(
 
     public async Task<ProductSavedResponse> CreateAsync(CreateProductRequest request, CancellationToken cancellationToken)
     {
+        var saved = await AddAsync(request, cancellationToken);
+        await pricingEngineRepository.RefreshEffectivePricesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
+        return saved;
+    }
+
+    /// <summary>Adds one product without rebuilding the prices or committing, so that a file import can add many in one transaction.</summary>
+    internal async Task<ProductSavedResponse> AddAsync(CreateProductRequest request, CancellationToken cancellationToken)
+    {
         var header = BuildHeader(request.Name, request.NameUrdu, request.DepartmentId, request.CategoryId, request.BrandId, request.SeasonId,
                                  request.GenderId, request.ProductTypeId, request.UnitId, request.LocationId, request.Weight, request.Description,
                                  request.TaxRate, request.TaxCode, request.Status);
@@ -71,10 +80,8 @@ public sealed class ProductCatalogService(
             priceEvents.Add(new PriceEventWriteData(variantId, Guid.Empty, PriceTypeCodes.Sale, null, data.SalePrice, null, PriceChangeReasonCodes.InitialPrice));
         }
         await priceHistoryRepository.AddEventsAsync(priceEvents, currentUser.UserId, cancellationToken);
-        await pricingEngineRepository.RefreshEffectivePricesAsync(cancellationToken);
-        await unitOfWork.CommitAsync(cancellationToken);
 
-        logger.LogInformation("Product {ProductId} ({ProductCode}) created in company {CompanyId} by user {UserId} with {VariantCount} sizes",
+        logger.LogInformation("Product {ProductId} ({ProductCode}) added in company {CompanyId} by user {UserId} with {VariantCount} sizes",
             productId, code, currentUser.CompanyId, currentUser.UserId, writeData.Count);
         return new ProductSavedResponse(productId, code);
     }

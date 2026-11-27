@@ -150,6 +150,16 @@ public sealed class ProductRepository(DatabaseSession databaseSession, ICurrentU
         product.DeletedBy = deletedBy;
     }
 
+    public async Task<IReadOnlyList<string>> FindNamesInUseAsync(IReadOnlyCollection<string> names, CancellationToken cancellationToken)
+    {
+        var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
+        var companyId = currentUser.CompanyId;
+        var lowered = names.Select(name => name.ToLowerInvariant()).ToList();
+        return await databaseContext.Products.AsNoTracking()
+            .Where(product => product.CompanyId == companyId && !product.IsDeleted && lowered.Contains(product.Name.ToLower()))
+            .Select(product => product.Name).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<string>> FindBarcodesInUseAsync(IReadOnlyCollection<string> barcodes, IReadOnlyCollection<Guid> exceptVariantIds,
                                                                     CancellationToken cancellationToken)
     {

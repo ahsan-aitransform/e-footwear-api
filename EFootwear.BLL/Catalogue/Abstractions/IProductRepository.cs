@@ -31,6 +31,9 @@ public interface IProductRepository
     Task SoftDeleteVariantAsync(Guid variantId, Guid deletedBy, CancellationToken cancellationToken);
     Task SoftDeleteProductAsync(Guid productId, Guid deletedBy, CancellationToken cancellationToken);
 
+    /// <summary>Of these product names, the ones a product of the company already has, whatever the letter case.</summary>
+    Task<IReadOnlyList<string>> FindNamesInUseAsync(IReadOnlyCollection<string> names, CancellationToken cancellationToken);
+
     /// <summary>Of these barcodes, the ones that are already used by a size (other than the excepted ones) or by a deal bundle.</summary>
     Task<IReadOnlyList<string>> FindBarcodesInUseAsync(IReadOnlyCollection<string> barcodes, IReadOnlyCollection<Guid> exceptVariantIds,
                                                        CancellationToken cancellationToken);

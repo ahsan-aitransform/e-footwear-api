@@ -134,7 +134,7 @@ public class CurrentSessionContractTests(ApiTestEnvironment environment)
         Assert.Equal(["actions", "displayName", "screenCode", "subGroupCode"], screen.EnumerateObject().Select(property => property.Name).Order().ToArray());
         Assert.Equal("ACCOUNT_REPORTS", screen.GetProperty("subGroupCode").GetString());
         var action = screen.GetProperty("actions").EnumerateArray().First();
-        Assert.Equal(["actionCode", "displayName", "permissionCode"], action.EnumerateObject().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(["actionCode", "displayName", "isOwnerOnly", "permissionCode"], action.EnumerateObject().Select(property => property.Name).Order().ToArray());
 
         var totalActions = modules.Sum(candidate => candidate.GetProperty("screens").EnumerateArray().Sum(s => s.GetProperty("actions").GetArrayLength()));
         Assert.Equal(PermissionCatalog.AllPermissionCodes.Count, totalActions);
