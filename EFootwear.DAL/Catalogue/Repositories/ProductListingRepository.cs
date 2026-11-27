@@ -98,7 +98,7 @@ public sealed class ProductListingRepository(DatabaseSession databaseSession, IC
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var parameters = new SqlParameterList();
         var company = parameters.Add(currentUser.CompanyId);
-        var barcodeParameter = parameters.Add(barcode);
+        var barcodeParameter = parameters.Add(await BarcodeMatching.FindStoredBarcodeAsync(databaseContext, currentUser.CompanyId, barcode, cancellationToken));
         var store = storeId is { } id ? parameters.Add(id) : null;
 
         var storePriceJoin = store is null ? "" : $"left join catalog.store_price_overrides so on so.company_id = v.company_id and so.variant_id = v.id and so.store_id = {store}";
@@ -136,8 +136,9 @@ public sealed class ProductListingRepository(DatabaseSession databaseSession, IC
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
+        var storedBarcode = await BarcodeMatching.FindStoredBarcodeAsync(databaseContext, companyId, barcode, cancellationToken);
         return await databaseContext.ProductVariants.AsNoTracking()
-            .Where(variant => variant.CompanyId == companyId && variant.Barcode == barcode && !variant.IsDeleted)
+            .Where(variant => variant.CompanyId == companyId && variant.Barcode == storedBarcode && !variant.IsDeleted)
             .Select(variant => (Guid?)variant.ProductId).FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -247,6 +248,7 @@ public sealed class ProductListingRepository(DatabaseSession databaseSession, IC
         {
             ProductMatchModeCodes.Start => LikePattern.StartsWith(searchText),
             ProductMatchModeCodes.End => LikePattern.EndsWith(searchText),
+            ProductMatchModeCodes.Exact => LikePattern.Exactly(searchText),
             _ => LikePattern.Contains(searchText),
         });
         string Like(string column) => $"{column} ilike {pattern} escape '\\'";
@@ -254,6 +256,7 @@ public sealed class ProductListingRepository(DatabaseSession databaseSession, IC
         return filter.SearchField switch
         {
             ProductSearchFieldCodes.Name => "(" + Like("p.name") + (filter.IncludeDescription ? " or " + Like("p.description") : "") + ")",
+            ProductSearchFieldCodes.Code => Like("p.code"),
             ProductSearchFieldCodes.Barcode => Like("v.barcode"),
             ProductSearchFieldCodes.Department => Like("d.name"),
             ProductSearchFieldCodes.Category => Like("c.name"),

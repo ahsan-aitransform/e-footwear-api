@@ -4,6 +4,7 @@ using EFootwear.BLL.Catalogue.Contracts;
 using EFootwear.BLL.Common;
 using EFootwear.DAL.Persistence;
 using EFootwear.Domain.Catalogue;
+using EFootwear.DAL.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace EFootwear.DAL.Catalogue.Repositories;
@@ -111,7 +112,19 @@ public sealed class BarcodeRepository(DatabaseSession databaseSession, ICurrentU
                        ChangedByName = user == null ? null : user.FullName,
                    };
         if (variantId is { } selectedVariantId) rows = rows.Where(row => row.VariantId == selectedVariantId);
-        if (barcode is not null) rows = rows.Where(row => row.OldBarcode == barcode || row.NewBarcode == barcode);
+        if (barcode is not null)
+        {
+            var wholeBarcode = LikePattern.Exactly(barcode);
+            rows = rows.Where(row => EF.Functions.ILike(row.OldBarcode, wholeBarcode, LikePattern.EscapeCharacter)
+                                     || EF.Functions.ILike(row.NewBarcode, wholeBarcode, LikePattern.EscapeCharacter));
+        }
+        if (pageRequest.SearchText is { } searchText)
+        {
+            var pattern = LikePattern.Contains(searchText);
+            rows = rows.Where(row => EF.Functions.ILike(row.OldBarcode, pattern, LikePattern.EscapeCharacter)
+                                     || EF.Functions.ILike(row.NewBarcode, pattern, LikePattern.EscapeCharacter)
+                                     || EF.Functions.ILike(row.ProductName, pattern, LikePattern.EscapeCharacter));
+        }
 
         var total = await rows.LongCountAsync(cancellationToken);
         var ordered = SortableHistoryFields.TryOrder(rows, pageRequest.SortField, pageRequest.SortDirection, out var requestedOrder)

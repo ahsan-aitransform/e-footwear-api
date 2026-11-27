@@ -44,6 +44,7 @@ public sealed class StockAuditService(
         if (audit.StatusCode != InventoryDocumentStatusCodes.Draft)
             throw new DomainException(ErrorKind.Conflict, $"Audit {audit.DocumentNumber} is {audit.StatusCode.ToLowerInvariant()}: only an audit that is still being counted accepts scans.");
 
+        barcode = await readRepository.FindStoredBarcodeAsync(barcode, cancellationToken);   // the database function compares exactly
         var outcome = await postingRepository.RecordAuditScanAsync(auditId, barcode, request.Quantity, request.DeviceScanId, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
 

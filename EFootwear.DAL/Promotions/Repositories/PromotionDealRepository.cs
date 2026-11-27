@@ -1,6 +1,7 @@
 using EFootwear.BLL.Abstractions;
 using EFootwear.BLL.Promotions.Abstractions;
 using EFootwear.BLL.Promotions.Contracts;
+using EFootwear.DAL.Common;
 using EFootwear.DAL.Persistence;
 using EFootwear.Domain.Common;
 using EFootwear.Domain.Promotions;
@@ -71,13 +72,14 @@ public sealed class PromotionDealRepository(DatabaseSession databaseSession, ICu
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
         var companyId = currentUser.CompanyId;
+        var storedBarcode = await BarcodeMatching.FindStoredBarcodeAsync(databaseContext, companyId, barcode, cancellationToken);
         var rows = await databaseContext.Database.SqlQuery<LookupRow>($"""
             select v.id as "VariantId", v.barcode as "Barcode", p.code as "ProductCode", p.name as "ProductName", v.size_code as "SizeCode",
                    coalesce(vp.sale_price, 0) as "SalePrice"
               from catalog.variants v
               join catalog.products p on p.company_id = v.company_id and p.id = v.product_id
               left join catalog.variant_prices vp on vp.company_id = v.company_id and vp.variant_id = v.id
-             where v.company_id = {companyId} and v.barcode = {barcode} and not v.is_deleted and not p.is_deleted
+             where v.company_id = {companyId} and v.barcode = {storedBarcode} and not v.is_deleted and not p.is_deleted
             """).ToListAsync(cancellationToken);
         return rows.Count == 0 ? null : new DealVariantLookupResponse(rows[0].VariantId, rows[0].Barcode, rows[0].ProductCode, rows[0].ProductName, rows[0].SizeCode, rows[0].SalePrice);
     }

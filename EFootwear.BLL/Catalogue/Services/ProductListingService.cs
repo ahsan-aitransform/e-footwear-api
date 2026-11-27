@@ -20,7 +20,7 @@ public sealed class ProductListingService(IProductListingRepository productListi
         if (filter.SearchField is not null && !ProductSearchFieldCodes.IsKnown(filter.SearchField))
             throw new DomainException(ErrorKind.Validation, "The search field is not known.");
         if (filter.MatchMode is not null && !ProductMatchModeCodes.IsKnown(filter.MatchMode))
-            throw new DomainException(ErrorKind.Validation, "The match mode must be Start, Contains or End.");
+            throw new DomainException(ErrorKind.Validation, "The match mode must be Start, Contains, End or Exact.");
         return productListingRepository.ListVariantRowsAsync(filter, pageRequest.Normalized(), cancellationToken);
     }
 

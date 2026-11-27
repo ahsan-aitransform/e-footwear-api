@@ -2,6 +2,7 @@ using EFootwear.BLL.Abstractions;
 using EFootwear.BLL.Common;
 using EFootwear.BLL.Sales.Abstractions;
 using EFootwear.BLL.Sales.Contracts;
+using EFootwear.DAL.Common;
 using EFootwear.DAL.Persistence;
 using EFootwear.Domain.Common;
 using EFootwear.Domain.Core;
@@ -261,8 +262,9 @@ public sealed class SaleInvoiceReadRepository(DatabaseSession databaseSession, I
     public async Task<SaleItemResponse?> FindItemByBarcodeAsync(Guid storeId, string barcode, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
+        var storedBarcode = await BarcodeMatching.FindStoredBarcodeAsync(databaseContext, currentUser.CompanyId, barcode, cancellationToken);
         var rows = await databaseContext.Database.SqlQueryRaw<SaleItemRow>(
-            ItemSelectSql + " and va.barcode = {2} limit 1", currentUser.CompanyId, storeId, barcode).ToListAsync(cancellationToken);
+            ItemSelectSql + " and va.barcode = {2} limit 1", currentUser.CompanyId, storeId, storedBarcode).ToListAsync(cancellationToken);
         return rows.Select(ToItemResponse).FirstOrDefault();
     }
 

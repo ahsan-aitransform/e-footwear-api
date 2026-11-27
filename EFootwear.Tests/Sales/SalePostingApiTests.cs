@@ -259,6 +259,14 @@ public class SalePostingApiTests(ApiTestEnvironment environment)
         Assert.Equal(1_000, found.GetProperty("suggestedUnitPrice").GetInt64());
         Assert.Equal(9, found.GetProperty("stockQuantity").GetDecimal());
 
+        // capital letters do not matter when a barcode is typed
+        foreach (var typed in new[] { item.Barcode.ToLowerInvariant(), item.Barcode.ToUpperInvariant() })
+        {
+            var typedFound = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync(
+                $"{SalesUrl}/{E_Footwear_Api.Routing.ApiRoutes.Sales.NewSaleItemByBarcode}?storeId={scenario.FirstStoreId}&barcode={typed}"));
+            Assert.Equal(item.Barcode, typedFound.GetProperty("barcode").GetString());
+        }
+
         var missing = await scenario.OwnerClient.GetAsync(
             $"{SalesUrl}/{E_Footwear_Api.Routing.ApiRoutes.Sales.NewSaleItemByBarcode}?storeId={scenario.FirstStoreId}&barcode=NO-SUCH-CODE");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);

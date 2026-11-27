@@ -26,7 +26,7 @@ public sealed class ProductsController(ProductCatalogService productCatalogServi
         [FromQuery] PageQuery pageQuery, [FromQuery] ProductListFilter filter, CancellationToken cancellationToken) =>
         await productListingService.ListVariantRowsAsync(filter, pageQuery.ToPageRequest(), cancellationToken);
 
-    /// <summary>Search Product: also searchField (NAME, BARCODE, DEPARTMENT, CATEGORY, BRAND, SALE_PRICE, COLOR), matchMode (START, CONTAINS, END), includeDescription.</summary>
+    /// <summary>Search Product: also searchField (ALL, NAME, CODE, BARCODE, DEPARTMENT, CATEGORY, BRAND, SALE_PRICE, COLOR), matchMode (START, CONTAINS, END, EXACT), includeDescription.</summary>
     [HttpGet(ApiRoutes.Products.VariantsSearch)]
     [RequirePermission(PermissionCodes.Products.SearchProduct.View)]
     public async Task<ActionResult<PagedResult<ProductVariantListItemResponse>>> SearchVariants(

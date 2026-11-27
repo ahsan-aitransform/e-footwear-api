@@ -9,6 +9,8 @@ public interface IInventoryReadRepository
     // lookups
     Task<IReadOnlyList<InventoryStoreResponse>> ListStoresAsync(CancellationToken cancellationToken);
     Task<InventoryItemResponse?> FindItemByBarcodeAsync(Guid storeId, string barcode, CancellationToken cancellationToken);
+    /// <summary>The stored barcode that a typed or scanned text means (capital letters do not matter); the text itself when no single size matches.</summary>
+    Task<string> FindStoredBarcodeAsync(string barcode, CancellationToken cancellationToken);
     Task<IReadOnlyList<InventoryItemResponse>> SearchItemsAsync(Guid storeId, string searchText, int limit, CancellationToken cancellationToken);
     Task<PagedResult<NonZeroStockRowResponse>> ListNonZeroStockAsync(Guid storeId, PageRequest pageRequest, CancellationToken cancellationToken);
     /// <summary>The books' quantity of each size in the store (zero when there is no balance row yet).</summary>

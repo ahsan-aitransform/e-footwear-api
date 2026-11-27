@@ -4,6 +4,7 @@ using EFootwear.BLL.Inventory.Abstractions;
 using EFootwear.BLL.Inventory.Contracts;
 using EFootwear.DAL.Persistence;
 using EFootwear.Domain.Inventory;
+using EFootwear.DAL.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace EFootwear.DAL.Inventory.Repositories;
@@ -48,9 +49,16 @@ public sealed class InventoryReadRepository(DatabaseSession databaseSession, ICu
     public async Task<InventoryItemResponse?> FindItemByBarcodeAsync(Guid storeId, string barcode, CancellationToken cancellationToken)
     {
         var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
-        var rows = await databaseContext.Database.SqlQueryRaw<ItemRow>(ItemSelectSql + " and va.barcode = {2} limit 1", currentUser.CompanyId, storeId, barcode)
+        var storedBarcode = await BarcodeMatching.FindStoredBarcodeAsync(databaseContext, currentUser.CompanyId, barcode, cancellationToken);
+        var rows = await databaseContext.Database.SqlQueryRaw<ItemRow>(ItemSelectSql + " and va.barcode = {2} limit 1", currentUser.CompanyId, storeId, storedBarcode)
             .ToListAsync(cancellationToken);
         return rows.Select(ToItem).FirstOrDefault();
+    }
+
+    public async Task<string> FindStoredBarcodeAsync(string barcode, CancellationToken cancellationToken)
+    {
+        var databaseContext = await databaseSession.GetDatabaseContextAsync(cancellationToken);
+        return await BarcodeMatching.FindStoredBarcodeAsync(databaseContext, currentUser.CompanyId, barcode, cancellationToken);
     }
 
     public async Task<IReadOnlyList<InventoryItemResponse>> SearchItemsAsync(Guid storeId, string searchText, int limit, CancellationToken cancellationToken)

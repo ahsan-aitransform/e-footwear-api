@@ -57,6 +57,7 @@ public sealed class StockTransferService(
             throw new DomainException(ErrorKind.Conflict,
                 $"Transfer {transfer.TransferNumber} is {transfer.StatusCode.ToLowerInvariant().Replace('_', ' ')} and does not accept {(isSending ? "sending" : "receiving")} scans.");
 
+        barcode = await readRepository.FindStoredBarcodeAsync(barcode, cancellationToken);   // the database function compares exactly
         var outcome = await postingRepository.RecordTransferScanAsync(transferId, scanningStoreId, phaseCode, barcode, request.Quantity, request.ScanBatchId, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
 

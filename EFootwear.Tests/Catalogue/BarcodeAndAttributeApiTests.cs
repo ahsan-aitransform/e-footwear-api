@@ -59,6 +59,15 @@ public class BarcodeAndAttributeApiTests(ApiTestEnvironment environment)
         var entry = Assert.Single(history.GetProperty("items").EnumerateArray());
         Assert.Equal("C2", entry.GetProperty("newBarcode").GetString());
         Assert.Equal(replaced.GetProperty("batchId").GetGuid(), entry.GetProperty("batchId").GetGuid());
+
+        // capital letters do not matter, and the search box of the list searches barcodes and product names
+        async Task<int> HistoryCountAsync(string query) =>
+            (await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{BarcodeUrl(ApiRoutes.Barcodes.History)}?{query}")))
+            .GetProperty("totalCount").GetInt32();
+        Assert.Equal(1, await HistoryCountAsync("barcode=c1"));
+        Assert.Equal(1, await HistoryCountAsync("searchText=c2"));
+        Assert.Equal(3, await HistoryCountAsync("searchText=alpha"));
+        Assert.Equal(0, await HistoryCountAsync("searchText=nothing-like-this"));
     }
 
     [Fact]

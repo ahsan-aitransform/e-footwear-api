@@ -18,6 +18,9 @@ public static class LikePattern
     /// <summary>The text must be at the end of the value ("End" match mode).</summary>
     public static string EndsWith(string searchText) => "%" + Escape(searchText);
 
+    /// <summary>The whole value, ignoring capital letters.</summary>
+    public static string Exactly(string searchText) => Escape(searchText);
+
     private static string Escape(string searchText)
     {
         var builder = new StringBuilder();
