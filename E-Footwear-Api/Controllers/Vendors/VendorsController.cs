@@ -10,8 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace E_Footwear_Api.Controllers.Vendors;
 
 /// <summary>
-/// Vendors: New Vendor, View Vendors and Search Vendor. View and Search are two screens with their own permission, so each has its own list
-/// endpoint over the same use case. The "lookup" endpoint gives a light list for dropdowns on other screens to every company user.
+/// Vendors: New Vendor and View Vendors. The "lookup" endpoint gives a light list
+/// for dropdowns on other screens to every company user.
 /// </summary>
 [ApiController]
 [Authorize(Policy = AuthorizationPolicies.CompanyUserOnly)]
@@ -21,12 +21,6 @@ public sealed class VendorsController(VendorService vendorService) : ControllerB
     [HttpGet]
     [RequirePermission(PermissionCodes.Vendors.ViewVendors.View)]
     public async Task<ActionResult<PagedResult<VendorListItemResponse>>> List(
-        [FromQuery] VendorSearchRequest filter, [FromQuery] PageRequest pageRequest, CancellationToken cancellationToken) =>
-        Ok(await vendorService.SearchAsync(filter, pageRequest, cancellationToken));
-
-    [HttpGet(ApiRoutes.Vendors.Search)]
-    [RequirePermission(PermissionCodes.Vendors.SearchVendor.View)]
-    public async Task<ActionResult<PagedResult<VendorListItemResponse>>> Search(
         [FromQuery] VendorSearchRequest filter, [FromQuery] PageRequest pageRequest, CancellationToken cancellationToken) =>
         Ok(await vendorService.SearchAsync(filter, pageRequest, cancellationToken));
 

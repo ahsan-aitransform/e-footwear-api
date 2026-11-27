@@ -10,8 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace E_Footwear_Api.Controllers.Staff;
 
 /// <summary>
-/// Staff: New Staff, View Staff and Search Staff, plus staff transfers between stores. View and Search are two screens with their own permission, so
-/// each has its own list endpoint over the same use case. The "lookup" endpoint gives a light list for dropdowns on other screens to every company user.
+/// Staff: New Staff and View Staff, plus staff transfers between stores. The "lookup" endpoint gives a light list
+/// for dropdowns on other screens to every company user.
 /// Salary terms and the staff profile page with the salary history live under <c>/staff</c> (Human Resources).
 /// </summary>
 [ApiController]
@@ -22,12 +22,6 @@ public sealed class StaffMembersController(StaffMemberService staffMemberService
     [HttpGet]
     [RequirePermission(PermissionCodes.HumanResources.ViewStaff.View)]
     public async Task<ActionResult<PagedResult<StaffMemberListItemResponse>>> List(
-        [FromQuery] StaffMemberSearchRequest filter, [FromQuery] PageRequest pageRequest, CancellationToken cancellationToken) =>
-        Ok(await staffMemberService.SearchAsync(filter, pageRequest, cancellationToken));
-
-    [HttpGet(ApiRoutes.StaffMembers.Search)]
-    [RequirePermission(PermissionCodes.HumanResources.SearchStaff.View)]
-    public async Task<ActionResult<PagedResult<StaffMemberListItemResponse>>> Search(
         [FromQuery] StaffMemberSearchRequest filter, [FromQuery] PageRequest pageRequest, CancellationToken cancellationToken) =>
         Ok(await staffMemberService.SearchAsync(filter, pageRequest, cancellationToken));
 

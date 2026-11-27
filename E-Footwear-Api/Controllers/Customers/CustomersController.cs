@@ -10,8 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace E_Footwear_Api.Controllers.Customers;
 
 /// <summary>
-/// Customers: New Customer, View Customers and Search Customer. View and Search are two screens with their own permission, so each has its own list
-/// endpoint over the same use case. The "lookup" endpoint gives a light list for dropdowns on other screens to every company user.
+/// Customers: New Customer and View Customers. The "lookup" endpoint gives a light list
+/// for dropdowns on other screens to every company user.
 /// </summary>
 [ApiController]
 [Authorize(Policy = AuthorizationPolicies.CompanyUserOnly)]
@@ -21,12 +21,6 @@ public sealed class CustomersController(CustomerService customerService) : Contr
     [HttpGet]
     [RequirePermission(PermissionCodes.Customers.ViewCustomers.View)]
     public async Task<ActionResult<PagedResult<CustomerListItemResponse>>> List(
-        [FromQuery] CustomerSearchRequest filter, [FromQuery] PageRequest pageRequest, CancellationToken cancellationToken) =>
-        Ok(await customerService.SearchAsync(filter, pageRequest, cancellationToken));
-
-    [HttpGet(ApiRoutes.Customers.Search)]
-    [RequirePermission(PermissionCodes.Customers.SearchCustomer.View)]
-    public async Task<ActionResult<PagedResult<CustomerListItemResponse>>> Search(
         [FromQuery] CustomerSearchRequest filter, [FromQuery] PageRequest pageRequest, CancellationToken cancellationToken) =>
         Ok(await customerService.SearchAsync(filter, pageRequest, cancellationToken));
 

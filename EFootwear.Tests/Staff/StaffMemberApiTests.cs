@@ -11,11 +11,10 @@ using static EFootwear.Tests.Contacts.ContactTestHelpers;
 
 namespace EFootwear.Tests.Staff;
 
-/// <summary>New Staff, View Staff and Search Staff, plus store transfers: validation, codes, search, store history, deletion, permissions, tenant isolation.</summary>
+/// <summary>New Staff, View Staff, plus store transfers: validation, codes, search, store history, deletion, permissions, tenant isolation.</summary>
 [Collection(ApiIntegrationCollection.Name)]
 public class StaffMemberApiTests(ApiTestEnvironment environment)
 {
-    private static readonly string SearchUrl = TestScenarioBuilder.Url(ApiRoutes.StaffMembers.Root, ApiRoutes.StaffMembers.Search);
     private static readonly string LookupUrl = TestScenarioBuilder.Url(ApiRoutes.StaffMembers.Root, ApiRoutes.StaffMembers.Lookup);
     private static readonly string CitiesUrl = TestScenarioBuilder.Url(ApiRoutes.MasterData.Cities);
 
@@ -104,7 +103,7 @@ public class StaffMemberApiTests(ApiTestEnvironment environment)
         Assert.Equal("Cashier", row.GetProperty("designation").GetString());
         Assert.Equal("Store S2", row.GetProperty("storeName").GetString());
 
-        var viaSearch = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{SearchUrl}?searchText=sleeping"));
+        var viaSearch = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{StaffMembersUrl}?searchText=sleeping"));
         Assert.Equal(new[] { "Sleeping Staff" }, Names(viaSearch));
     }
 
@@ -218,7 +217,6 @@ public class StaffMemberApiTests(ApiTestEnvironment environment)
         var nothing = await scenario.SignInUserWithPermissionsAsync(RoleCodes.CashierSalesman, [scenario.FirstStoreId]);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.GetAsync(StaffMembersUrl)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await nothing.GetAsync(SearchUrl)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.GetAsync($"{StaffMembersUrl}/{staffId}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.PostAsJsonAsync(StaffMembersUrl, StaffMemberBody("Nope", scenario.FirstStoreId))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.DeleteAsync($"{StaffMembersUrl}/{staffId}")).StatusCode);

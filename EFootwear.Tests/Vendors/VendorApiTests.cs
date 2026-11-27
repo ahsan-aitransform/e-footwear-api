@@ -11,11 +11,10 @@ using static EFootwear.Tests.Contacts.ContactTestHelpers;
 
 namespace EFootwear.Tests.Vendors;
 
-/// <summary>New Vendor, View Vendors and Search Vendor: validation, codes, search, deletion, opening balance, permissions and tenant isolation.</summary>
+/// <summary>New Vendor, View Vendors: validation, codes, search, deletion, opening balance, permissions and tenant isolation.</summary>
 [Collection(ApiIntegrationCollection.Name)]
 public class VendorApiTests(ApiTestEnvironment environment)
 {
-    private static readonly string SearchUrl = TestScenarioBuilder.Url(ApiRoutes.Vendors.Root, ApiRoutes.Vendors.Search);
     private static readonly string LookupUrl = TestScenarioBuilder.Url(ApiRoutes.Vendors.Root, ApiRoutes.Vendors.Lookup);
     private static readonly string CitiesUrl = TestScenarioBuilder.Url(ApiRoutes.MasterData.Cities);
 
@@ -107,8 +106,8 @@ public class VendorApiTests(ApiTestEnvironment environment)
         var sorted = Names(await ListAsync(scenario.OwnerClient, "?sortField=name&sortDirection=Descending"));
         Assert.Equal(sorted.OrderByDescending(name => name, StringComparer.Ordinal).ToArray(), sorted);
 
-        // Search Vendor is its own screen with its own endpoint
-        var viaSearch = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{SearchUrl}?searchText=bata"));
+        // the free text search of the same list
+        var viaSearch = await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{VendorsUrl}?searchText=bata"));
         Assert.Equal(new[] { "Bata Distributors" }, Names(viaSearch));
     }
 
@@ -197,7 +196,6 @@ public class VendorApiTests(ApiTestEnvironment environment)
         var nothing = await scenario.SignInUserWithPermissionsAsync(RoleCodes.CashierSalesman, [scenario.FirstStoreId]);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.GetAsync(VendorsUrl)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await nothing.GetAsync(SearchUrl)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.GetAsync($"{VendorsUrl}/{vendorId}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.PostAsJsonAsync(VendorsUrl, VendorBody("Nope"))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await nothing.DeleteAsync($"{VendorsUrl}/{vendorId}")).StatusCode);

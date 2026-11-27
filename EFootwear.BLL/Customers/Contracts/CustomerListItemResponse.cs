@@ -1,7 +1,7 @@
 namespace EFootwear.BLL.Customers.Contracts;
 
 /// <summary>
-/// A row of View Customers / Search Customer. BalanceAmount is derived from the journal (never stored on the customer): positive means the customer owes the company. Whole rupees.
+/// A row of View Customers. BalanceAmount is derived from the journal (never stored on the customer): positive means the customer owes the company. Whole rupees.
 /// </summary>
 public sealed record CustomerListItemResponse(
     Guid Id,

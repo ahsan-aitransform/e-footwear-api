@@ -200,11 +200,10 @@ public static class ApiRoutes
         public const string Root = VersionPrefix + "/opening-balances";
     }
 
-    /// <summary>Customers: New Customer, View Customers, Search Customer and the customer account detail.</summary>
+    /// <summary>Customers: New Customer, View Customers and the customer account detail.</summary>
     public static class Customers
     {
         public const string Root = VersionPrefix + "/customers";
-        public const string Search = "search";
         public const string Lookup = "lookup";
         public const string CustomerById = "{customerId:guid}";
     }
@@ -214,11 +213,10 @@ public static class ApiRoutes
         public const string Root = VersionPrefix + "/customer-ledger";
     }
 
-    /// <summary>Vendors: New Vendor, View Vendors, Search Vendor and the vendor account detail.</summary>
+    /// <summary>Vendors: New Vendor, View Vendors and the vendor account detail.</summary>
     public static class Vendors
     {
         public const string Root = VersionPrefix + "/vendors";
-        public const string Search = "search";
         public const string Lookup = "lookup";
         public const string VendorById = "{vendorId:guid}";
     }
@@ -228,11 +226,10 @@ public static class ApiRoutes
         public const string Root = VersionPrefix + "/vendor-ledger";
     }
 
-    /// <summary>Staff: New Staff, View Staff, Search Staff, store transfers and the staff account detail. The salary side of staff lives under <see cref="Staff"/>.</summary>
+    /// <summary>Staff: New Staff, View Staff, store transfers and the staff account detail. The salary side of staff lives under <see cref="Staff"/>.</summary>
     public static class StaffMembers
     {
         public const string Root = VersionPrefix + "/staff-members";
-        public const string Search = "search";
         public const string Lookup = "lookup";
         public const string StaffById = "{staffId:guid}";
         public const string Transfers = "{staffId:guid}/transfers";

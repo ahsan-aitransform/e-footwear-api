@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace EFootwear.BLL.Vendors.Services;
 
 /// <summary>
-/// Use cases of New Vendor, View Vendors and Search Vendor. Rules: the name and the phone number are required; the email, the birth date and the
+/// Use cases of New Vendor and View Vendors. Rules: the name and the phone number are required; the email, the birth date and the
 /// city are optional; the code is generated; a vendor that has accounting history cannot be deleted (it can be made inactive). The balance is
 /// never edited here: it comes from the journal. An opening balance is posted through the accounting opening-balance mechanism and needs the
 /// OPENING_BALANCE permission. The credit limit is whole rupees; the database refuses a purchase bill that would take the open bills above it.

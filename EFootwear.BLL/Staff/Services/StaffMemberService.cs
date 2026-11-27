@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 namespace EFootwear.BLL.Staff.Services;
 
 /// <summary>
-/// Use cases of New Staff, View Staff and Search Staff. Rules: the name and the phone number are required; a staff member works in a store the
+/// Use cases of New Staff, View Staff. Rules: the name and the phone number are required; a staff member works in a store the
 /// caller may use; the code is generated; a staff member that has accounting or payroll history cannot be deleted (it can be made inactive). The
 /// balance is never edited here: it comes from the journal. An opening balance is posted through the accounting opening-balance mechanism and
 /// needs the OPENING_BALANCE permission.

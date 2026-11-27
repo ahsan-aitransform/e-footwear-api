@@ -1,6 +1,6 @@
 namespace EFootwear.BLL.Staff.Contracts;
 
-/// <summary>A row of View Staff / Search Staff. BalanceAmount is derived from the journal (never stored on the staff member). Whole rupees.</summary>
+/// <summary>A row of View Staff. BalanceAmount is derived from the journal (never stored on the staff member). Whole rupees.</summary>
 public sealed record StaffMemberListItemResponse(
     Guid Id,
     string Code,
