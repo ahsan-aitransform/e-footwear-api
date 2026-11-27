@@ -17,9 +17,20 @@ public sealed class ProductListingService(IProductListingRepository productListi
     public async Task<PagedResult<ProductVariantListItemResponse>> ListVariantRowsAsync(ProductListFilter filter, PageRequest pageRequest, CancellationToken cancellationToken)
     {
         EnsureStoreIsAllowed(filter.StoreId);
-        var page = await productListingRepository.ListVariantRowsAsync(filter, pageRequest.Normalized(), cancellationToken);
-        if (ProductPricingFormulas.CanViewMargin(currentUser.RoleCode)) return page;
-        var items = page.Items.Select(row => row with { MarginPercent = null, MarkupPercent = null }).ToList();
+        var showsMargin = ProductPricingFormulas.CanViewMargin(currentUser.RoleCode);
+        var showsPurchasePrice = ProductPricingFormulas.CanViewPurchasePrice(currentUser.RoleCode);
+        var request = pageRequest.Normalized();
+        // the order of the rows would give a hidden price away
+        if (!showsPurchasePrice && string.Equals(request.SortField, "purchasePrice", StringComparison.OrdinalIgnoreCase))
+            request = request with { SortField = null };
+        var page = await productListingRepository.ListVariantRowsAsync(filter, request, cancellationToken);
+        if (showsMargin && showsPurchasePrice) return page;
+        var items = page.Items.Select(row => row with
+        {
+            PurchasePrice = showsPurchasePrice ? row.PurchasePrice : null,
+            MarginPercent = showsMargin ? row.MarginPercent : null,
+            MarkupPercent = showsMargin ? row.MarkupPercent : null,
+        }).ToList();
         return new PagedResult<ProductVariantListItemResponse>(items, page.PageNumber, page.PageSize, page.TotalItemCount);
     }
 

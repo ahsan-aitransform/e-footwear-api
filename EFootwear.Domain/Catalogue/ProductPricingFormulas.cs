@@ -15,6 +15,9 @@ public static class ProductPricingFormulas
     /// <summary>Margin and markup are for the company owner only; a role rule, so that no permission grant can open them to anyone else.</summary>
     public static bool CanViewMargin(string roleCode) => roleCode == RoleCodes.CompanyOwner;
 
+    /// <summary>A cashier sells at the counter and is not shown what the company paid.</summary>
+    public static bool CanViewPurchasePrice(string roleCode) => roleCode != RoleCodes.CashierSalesman;
+
     public static long NetPrice(long salePrice, long discountAmount) => Math.Max(salePrice - discountAmount, 0);
 
     public static decimal? MarginPercent(long netPrice, long purchasePrice) =>

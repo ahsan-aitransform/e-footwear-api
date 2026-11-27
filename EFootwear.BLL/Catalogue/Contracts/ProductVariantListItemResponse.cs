@@ -5,7 +5,7 @@ namespace EFootwear.BLL.Catalogue.Contracts;
 /// SalePrice is the store price (or the company list price); DiscountAmount and DiscountPercent come from the pricing engine
 /// (promo.effective_prices) for the selected store; NetPrice = SalePrice - DiscountAmount; MarginPercent is on the net price (docx 4.2) and
 /// MarkupPercent on the purchase price (docx 4.10 calls it Profit %): two different figures, labelled separately on the screens.
-/// Both are null for everyone but the company owner.
+/// Both are null for everyone but the company owner. PurchasePrice is null for a cashier.
 /// </summary>
 public sealed record ProductVariantListItemResponse(
     Guid ProductId,
@@ -18,7 +18,7 @@ public sealed record ProductVariantListItemResponse(
     string SizeCode,
     string? ColorName,
     decimal StockQuantity,
-    long PurchasePrice,
+    long? PurchasePrice,
     long SalePrice,
     decimal? DiscountPercent,
     long DiscountAmount,

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using E_Footwear_Api.Routing;
+using EFootwear.Domain.Security;
 using EFootwear.Domain.Security.Permissions;
 using EFootwear.Tests.Infrastructure;
 using EFootwear.Tests.MasterData;
@@ -311,6 +312,27 @@ public class ProductApiTests(ApiTestEnvironment environment)
         Assert.Equal(JsonValueKind.Number, forOwner.GetProperty("markupPercent").ValueKind);
         Assert.Equal(JsonValueKind.Null, forManager.GetProperty("marginPercent").ValueKind);
         Assert.Equal(JsonValueKind.Null, forManager.GetProperty("markupPercent").ValueKind);
+    }
+
+    [Fact]
+    public async Task A_cashier_is_not_sent_the_purchase_price_and_cannot_sort_by_it()
+    {
+        var (scenario, lookups) = await NewCompanyAsync();
+        await CreateProductAsync(scenario.OwnerClient, lookups, "Alpha", Variant("27", 900, 999));
+        await CreateProductAsync(scenario.OwnerClient, lookups, "Beta", Variant("27", 100, 999));
+        var cashier = await scenario.SignInUserWithPermissionsAsync(RoleCodes.CashierSalesman, [scenario.FirstStoreId], PermissionCodes.Products.ViewProducts.View);
+        var manager = await scenario.SignInManagerWithPermissionsAsync(PermissionCodes.Products.ViewProducts.View);
+
+        async Task<JsonElement[]> RowsAsync(HttpClient client) =>
+            (await OwnerCompanyScenario.ReadJsonAsync(await client.GetAsync($"{ProductsUrl}/{ApiRoutes.Products.Variants}?sort=purchasePrice")))
+            .GetProperty("items").EnumerateArray().ToArray();
+        var forCashier = await RowsAsync(cashier);
+        var forManager = await RowsAsync(manager);
+
+        Assert.All(forCashier, row => Assert.Equal(JsonValueKind.Null, row.GetProperty("purchasePrice").ValueKind));
+        Assert.All(forCashier, row => Assert.Equal(JsonValueKind.Null, row.GetProperty("marginPercent").ValueKind));
+        Assert.Equal(["Alpha", "Beta"], forCashier.Select(row => row.GetProperty("productName").GetString()!).ToArray()); // by name, not by price
+        Assert.Equal([100L, 900L], forManager.Select(row => row.GetProperty("purchasePrice").GetInt64()).ToArray());
     }
 
     [Fact]
