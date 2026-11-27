@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace EFootwear.BLL.Customers.Services;
 
 /// <summary>
-/// Use cases of New Customer and View Customers. Rules: the name and the phone number are required; the email, the birth date and the
+/// Use cases of New Customer, View Customers and Search Customer. Rules: the name and the phone number are required; the email, the birth date and the
 /// city and the CNIC are optional; a customer is regular unless made special; the code is generated; a customer that has accounting history cannot be deleted (it can be made inactive). The balance is
 /// never edited here: it comes from the journal. An opening balance is posted through the accounting opening-balance mechanism and needs the
 /// OPENING_BALANCE permission. The walk-in customer "Cash Sale" belongs to the system: it cannot be edited or deleted.

@@ -8,7 +8,7 @@ using EFootwear.Domain.Common;
 namespace EFootwear.BLL.Catalogue.Services;
 
 /// <summary>
-/// The read screens of the catalogue: View Products (docx 4.2), Search Product (4.3), Check Price (4.5), Products Stock with Sizes On Multiple
+/// The read screens of the catalogue: View Products (docx 4.2), Check Price (4.5), Products Stock with Sizes On Multiple
 /// Stores (4.14) and the Product Report (4.15). A store named in a request must be one the caller may work in (the head office is not a store that
 /// holds stock or has its own prices). Row-level security additionally hides the stock of stores the caller may not see.
 /// </summary>
@@ -17,10 +17,6 @@ public sealed class ProductListingService(IProductListingRepository productListi
     public Task<PagedResult<ProductVariantListItemResponse>> ListVariantRowsAsync(ProductListFilter filter, PageRequest pageRequest, CancellationToken cancellationToken)
     {
         EnsureStoreIsAllowed(filter.StoreId);
-        if (filter.SearchField is not null && !ProductSearchFieldCodes.IsKnown(filter.SearchField))
-            throw new DomainException(ErrorKind.Validation, "The search field is not known.");
-        if (filter.MatchMode is not null && !ProductMatchModeCodes.IsKnown(filter.MatchMode))
-            throw new DomainException(ErrorKind.Validation, "The match mode must be Start, Contains, End or Exact.");
         return productListingRepository.ListVariantRowsAsync(filter, pageRequest.Normalized(), cancellationToken);
     }
 

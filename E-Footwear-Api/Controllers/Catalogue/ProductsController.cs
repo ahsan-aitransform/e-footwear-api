@@ -11,8 +11,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace E_Footwear_Api.Controllers.Catalogue;
 
 /// <summary>
-/// Products and their sizes (docx 4.1 New Product, 4.2 View Products, 4.3 Search Product). The four list endpoints return the same rows (one per size) and differ
-/// only in the screen permission they need: View Products, Search Product, and the two discount screens that show the same grid.
+/// Products and their sizes (docx 4.1 New Product, 4.2 View Products). The three list endpoints return the same rows (one per size) and differ
+/// only in the screen permission they need: View Products, and the two discount screens that show the same grid.
 /// </summary>
 [ApiController]
 [Authorize(Policy = AuthorizationPolicies.CompanyUserOnly)]
@@ -23,13 +23,6 @@ public sealed class ProductsController(ProductCatalogService productCatalogServi
     [HttpGet(ApiRoutes.Products.Variants)]
     [RequirePermission(PermissionCodes.Products.ViewProducts.View)]
     public async Task<ActionResult<PagedResult<ProductVariantListItemResponse>>> ListVariants(
-        [FromQuery] PageQuery pageQuery, [FromQuery] ProductListFilter filter, CancellationToken cancellationToken) =>
-        await productListingService.ListVariantRowsAsync(filter, pageQuery.ToPageRequest(), cancellationToken);
-
-    /// <summary>Search Product: also searchField (ALL, NAME, CODE, BARCODE, DEPARTMENT, CATEGORY, BRAND, SALE_PRICE, COLOR), matchMode (START, CONTAINS, END, EXACT), includeDescription.</summary>
-    [HttpGet(ApiRoutes.Products.VariantsSearch)]
-    [RequirePermission(PermissionCodes.Products.SearchProduct.View)]
-    public async Task<ActionResult<PagedResult<ProductVariantListItemResponse>>> SearchVariants(
         [FromQuery] PageQuery pageQuery, [FromQuery] ProductListFilter filter, CancellationToken cancellationToken) =>
         await productListingService.ListVariantRowsAsync(filter, pageQuery.ToPageRequest(), cancellationToken);
 

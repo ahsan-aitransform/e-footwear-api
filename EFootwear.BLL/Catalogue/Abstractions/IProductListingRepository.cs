@@ -4,7 +4,7 @@ using EFootwear.BLL.Common;
 namespace EFootwear.BLL.Catalogue.Abstractions;
 
 /// <summary>
-/// Read models of the catalogue screens (View/Search Products, Check Price, stock on several stores, Product Report). Implemented in
+/// Read models of the catalogue screens (View Products, Check Price, stock on several stores, Product Report). Implemented in
 /// EFootwear.DAL/Catalogue/Repositories/ProductListingRepository.cs with set-based SQL; row-level security limits stock to the caller's stores.
 /// </summary>
 public interface IProductListingRepository

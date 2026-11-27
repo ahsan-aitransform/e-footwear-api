@@ -310,7 +310,6 @@ public static class ApiRoutes
     {
         public const string Root = VersionPrefix + "/products";
         public const string Variants = "variants";
-        public const string VariantsSearch = "variants/search";
         public const string VariantsForDiscounts = "variants/for-discounts";
         public const string VariantsForDiscountRemoval = "variants/for-discount-removal";
         public const string LookupForLedger = "lookup/for-ledger";

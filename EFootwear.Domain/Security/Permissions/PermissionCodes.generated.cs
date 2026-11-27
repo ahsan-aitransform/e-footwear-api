@@ -84,11 +84,6 @@ public static class PermissionCodes
             public const string Print = "PRODUCTS.VIEW_PRODUCTS.PRINT";
             public const string Export = "PRODUCTS.VIEW_PRODUCTS.EXPORT";
         }
-        /// <summary>Search Product</summary>
-        public static class SearchProduct
-        {
-            public const string View = "PRODUCTS.SEARCH_PRODUCT.VIEW";
-        }
         /// <summary>Product Ledger</summary>
         public static class ProductLedger
         {

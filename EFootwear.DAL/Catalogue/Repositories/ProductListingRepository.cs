@@ -54,7 +54,7 @@ public sealed class ProductListingRepository(DatabaseSession databaseSession, IC
         if (filter.SeasonId is { } seasonId) where.Append($" and p.season_id = {parameters.Add(seasonId)}");
         if (filter.ColorId is { } colorId) where.Append($" and v.color_id = {parameters.Add(colorId)}");
         if (pageRequest.SearchText is { } searchText)
-            where.Append(" and " + BuildSearchCondition(filter, searchText, salePrice, parameters));
+            where.Append(" and " + BuildSearchCondition(searchText, parameters));
 
         var orderExpression = pageRequest.SortField is { } sortField && VariantSortExpressions.TryGetValue(sortField, out var sortExpression)
             ? $"{sortExpression} {(pageRequest.SortDirection == SortDirection.Descending ? "desc" : "asc")} nulls last, p.name, p.id, {NaturalSizeOrder}"
@@ -242,30 +242,12 @@ public sealed class ProductListingRepository(DatabaseSession databaseSession, IC
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    private static string BuildSearchCondition(ProductListFilter filter, string searchText, string salePriceExpression, SqlParameterList parameters)
+    private static string BuildSearchCondition(string searchText, SqlParameterList parameters)
     {
-        var pattern = parameters.Add(filter.MatchMode switch
-        {
-            ProductMatchModeCodes.Start => LikePattern.StartsWith(searchText),
-            ProductMatchModeCodes.End => LikePattern.EndsWith(searchText),
-            ProductMatchModeCodes.Exact => LikePattern.Exactly(searchText),
-            _ => LikePattern.Contains(searchText),
-        });
+        var pattern = parameters.Add(LikePattern.Contains(searchText));
         string Like(string column) => $"{column} ilike {pattern} escape '\\'";
 
-        return filter.SearchField switch
-        {
-            ProductSearchFieldCodes.Name => "(" + Like("p.name") + (filter.IncludeDescription ? " or " + Like("p.description") : "") + ")",
-            ProductSearchFieldCodes.Code => Like("p.code"),
-            ProductSearchFieldCodes.Barcode => Like("v.barcode"),
-            ProductSearchFieldCodes.Department => Like("d.name"),
-            ProductSearchFieldCodes.Category => Like("c.name"),
-            ProductSearchFieldCodes.Brand => Like("b.name"),
-            ProductSearchFieldCodes.Color => Like("col.name"),
-            ProductSearchFieldCodes.SalePrice => Like($"({salePriceExpression})::text"),
-            _ => "(" + Like("p.name") + " or " + Like("p.code") + " or " + Like("v.barcode") + " or " + Like("p.name_ur")
-                 + (filter.IncludeDescription ? " or " + Like("p.description") : "") + ")",
-        };
+        return "(" + Like("p.name") + " or " + Like("p.code") + " or " + Like("v.barcode") + " or " + Like("p.name_ur") + ")";
     }
 
     private static ProductVariantListItemResponse ToResponse(VariantListRow row)

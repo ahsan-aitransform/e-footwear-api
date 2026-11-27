@@ -101,26 +101,22 @@ public class ProductReadModelsApiTests(ApiTestEnvironment environment)
         TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await (await scenario.SignInManagerWithPermissionsAsync()).GetAsync($"{Url(ApiRoutes.Products.Ledger)}?storeId={scenario.FirstStoreId}&productId={product.ProductId}&{range}"));
     }
 
-    // ---------- Search Product ----------
+    // ---------- Product search ----------
 
     [Fact]
-    public async Task Search_product_takes_every_option_of_the_screen_and_ignores_capital_letters()
+    public async Task The_product_search_and_the_price_check_ignore_capital_letters()
     {
         var (scenario, lookups) = await NewCompanyAsync();
         await CreateAsync(scenario.OwnerClient, lookups, "Alpha Runner", Variant("27", 1, 2, barcode: "Ab-27"));
 
-        async Task<int> CountAsync(string query) =>
-            (await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{Url(ApiRoutes.Products.VariantsSearch)}?{query}")))
+        async Task<int> CountAsync(string text) =>
+            (await OwnerCompanyScenario.ReadJsonAsync(await scenario.OwnerClient.GetAsync($"{Url(ApiRoutes.Products.Variants)}?searchText={text}")))
             .GetProperty("totalCount").GetInt32();
 
-        Assert.Equal(1, await CountAsync("searchField=ALL&matchMode=CONTAINS&searchText=RUNNER"));
-        Assert.Equal(1, await CountAsync("searchField=NAME&matchMode=START&searchText=alpha"));
-        Assert.Equal(1, await CountAsync("searchField=NAME&matchMode=END&searchText=runner"));
-        Assert.Equal(1, await CountAsync("searchField=NAME&matchMode=EXACT&searchText=ALPHA%20RUNNER"));
-        Assert.Equal(0, await CountAsync("searchField=NAME&matchMode=EXACT&searchText=alpha"));
-        Assert.Equal(1, await CountAsync("searchField=BARCODE&matchMode=EXACT&searchText=aB-27"));
-        Assert.Equal(0, await CountAsync("searchField=CODE&matchMode=CONTAINS&searchText=runner"));
-        Assert.Equal(1, (await CheckPriceAsync(scenario.OwnerClient, "AB-27")).GetProperty("barcode").GetString() == "Ab-27" ? 1 : 0);
+        Assert.Equal(1, await CountAsync("RUNNER"));
+        Assert.Equal(1, await CountAsync("aB-27"));
+        Assert.Equal(0, await CountAsync("walker"));
+        Assert.Equal("Ab-27", (await CheckPriceAsync(scenario.OwnerClient, "AB-27")).GetProperty("barcode").GetString());
     }
 
     // ---------- Products Stock with Sizes On Multiple Stores ----------

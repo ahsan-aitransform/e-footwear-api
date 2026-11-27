@@ -9,7 +9,7 @@ using static EFootwear.Tests.Catalogue.CatalogueTestHelpers;
 
 namespace EFootwear.Tests.Catalogue;
 
-/// <summary>New Product, View Products and Search Product (docx 4.1 to 4.3): creation, codes, barcodes, editing, deletion, listing, permissions, tenant isolation.</summary>
+/// <summary>New Product and View Products (docx 4.1, 4.2): creation, codes, barcodes, editing, deletion, listing, permissions, tenant isolation.</summary>
 [Collection(ApiIntegrationCollection.Name)]
 public class ProductApiTests(ApiTestEnvironment environment)
 {
@@ -250,23 +250,17 @@ public class ProductApiTests(ApiTestEnvironment environment)
     }
 
     [Fact]
-    public async Task Search_matches_the_start_the_middle_or_the_end_of_a_field_and_the_barcode()
+    public async Task The_list_search_finds_a_part_of_the_name_or_the_barcode()
     {
         var (scenario, lookups) = await NewCompanyAsync();
         await CreateProductAsync(scenario.OwnerClient, lookups, "Alpha Sandal", Variant("40", 1, 2, barcode: "A-111"));
         await CreateProductAsync(scenario.OwnerClient, lookups, "Beta Shoe", Variant("40", 1, 2, barcode: "B-222"));
         string[] Names(JsonElement result) => result.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("productName").GetString()!).ToArray();
-        async Task<JsonElement> Search(string query) => await OwnerCompanyScenario.ReadJsonAsync(
-            await scenario.OwnerClient.GetAsync($"{ProductsUrl}/{ApiRoutes.Products.VariantsSearch}?{query}"));
+        async Task<JsonElement> Search(string text) => await ListVariantsAsync(scenario.OwnerClient, $"searchText={text}");
 
-        Assert.Equal(["Alpha Sandal"], Names(await Search("searchField=NAME&matchMode=START&searchText=Alp")));
-        Assert.Equal(["Beta Shoe"], Names(await Search("searchField=NAME&matchMode=END&searchText=Shoe")));
-        Assert.Equal(["Beta Shoe"], Names(await Search("searchField=NAME&matchMode=CONTAINS&searchText=eta")));
-        Assert.Equal(["Alpha Sandal"], Names(await Search("searchField=BARCODE&matchMode=START&searchText=A-1")));
-        Assert.Equal(["Alpha Sandal"], Names(await Search("searchText=111")));
-        Assert.Empty(Names(await Search("searchField=NAME&matchMode=START&searchText=Shoe")));
-        Assert.Empty(Names(await Search("searchField=NAME&matchMode=CONTAINS&searchText=%25")));
-        TestScenarioBuilder.AssertStatus(HttpStatusCode.BadRequest, await scenario.OwnerClient.GetAsync($"{ProductsUrl}/{ApiRoutes.Products.VariantsSearch}?searchField=PASSWORD&searchText=x"));
+        Assert.Equal(["Beta Shoe"], Names(await Search("eta")));
+        Assert.Equal(["Alpha Sandal"], Names(await Search("111")));
+        Assert.Empty(Names(await Search("%25")));
     }
 
     [Fact]
@@ -294,7 +288,6 @@ public class ProductApiTests(ApiTestEnvironment environment)
         var nobody = await scenario.SignInManagerWithPermissionsAsync();
 
         TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await nobody.GetAsync($"{ProductsUrl}/{ApiRoutes.Products.Variants}"));
-        TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await nobody.GetAsync($"{ProductsUrl}/{ApiRoutes.Products.VariantsSearch}"));
         TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await nobody.GetAsync(ProductUrl(productId)));
         TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await nobody.GetAsync($"{ProductsUrl}/{ApiRoutes.Products.NextCode}"));
         TestScenarioBuilder.AssertStatus(HttpStatusCode.Forbidden, await nobody.PostAsJsonAsync(ProductsUrl, ProductBody(lookups, "X", [Variant("1", 1, 2)])));

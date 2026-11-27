@@ -63,7 +63,6 @@ public static class DefaultRolePermissionTemplates
         var codes = new List<string>();
         codes.AddRange(CodesOf("INVOICE", "NEW_SALE", [PermissionActionCodes.View, PermissionActionCodes.Add, PermissionActionCodes.Print]));
         codes.AddRange(CodesOf("INVOICE", "VIEW_INVOICES", [PermissionActionCodes.View, PermissionActionCodes.Print]));
-        codes.AddRange(CodesOf("PRODUCTS", "SEARCH_PRODUCT"));
         codes.AddRange(CodesOf("PRODUCTS", "PRICE_CHECK"));
         codes.AddRange(CodesOf("PRODUCTS", "VIEW_PRODUCTS", [PermissionActionCodes.View]));
         codes.AddRange(CodesOf("CUSTOMERS", "VIEW_CUSTOMERS", [PermissionActionCodes.View]));

@@ -39,7 +39,6 @@ internal static class PermissionCatalogDefinitions
         builder.Module("PRODUCTS", "Products")
             .Screen("NEW_PRODUCT", "New Product", PermissionActionSets.EntryWithSellingPriceControl)
             .Screen("VIEW_PRODUCTS", "View Products", PermissionActionSets.List)
-            .Screen("SEARCH_PRODUCT", "Search Product", PermissionActionSets.ViewOnly)
             .Screen("PRODUCT_LEDGER", "Product Ledger", PermissionActionSets.Report)
             .Screen("GENERATE_BARCODES", "Generate Barcodes", [PermissionActionCodes.View, PermissionActionCodes.Print])
             .Screen("PRICE_CHECK", "Price Check", PermissionActionSets.ViewOnly)

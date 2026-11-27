@@ -12,12 +12,6 @@ public static class LikePattern
 
     public static string Contains(string searchText) => "%" + Escape(searchText) + "%";
 
-    /// <summary>The text must be at the start of the value ("Start" match mode).</summary>
-    public static string StartsWith(string searchText) => Escape(searchText) + "%";
-
-    /// <summary>The text must be at the end of the value ("End" match mode).</summary>
-    public static string EndsWith(string searchText) => "%" + Escape(searchText);
-
     /// <summary>The whole value, ignoring capital letters.</summary>
     public static string Exactly(string searchText) => Escape(searchText);
 
