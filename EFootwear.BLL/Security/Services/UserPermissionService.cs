@@ -42,6 +42,7 @@ public sealed class UserPermissionService(
         var currentCodes = await userPermissionRepository.GetGrantedCodesAsync(requestContext.CompanyId, userId, cancellationToken);
         var change = PermissionGrantRules.Compare(currentCodes, requestedCodes);
         if (change.IsEmpty) return;
+        PermissionGrantRules.EnsureNotOwnerOnly(change.AddedCodes);
         PermissionGrantRules.EnsureCanGrant(requestContext.GrantedPermissionCodes, change.AddedCodes);
 
         await userPermissionRepository.ApplyChangeAsync(requestContext.CompanyId, userId, change, requestContext.UserId, cancellationToken);

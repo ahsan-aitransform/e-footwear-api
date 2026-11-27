@@ -97,6 +97,7 @@ public sealed class RoleTemplateService(
         var description = SecurityLimits.EnsureOptionalText(request.Description, "Description", SecurityLimits.MaximumDescriptionLength);
         var permissionCodes = (request.PermissionCodes ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
         PermissionGrantRules.EnsureCodesAreKnown(permissionCodes);
+        PermissionGrantRules.EnsureNotOwnerOnly(permissionCodes);
         return (name, description, permissionCodes);
     }
 }

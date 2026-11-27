@@ -24,6 +24,15 @@ public static class PermissionGrantRules
                 $"These permission codes do not exist: {string.Join(", ", unknownCodes)}.");
     }
 
+    /// <summary>For a user other than the owner, and for a role template.</summary>
+    public static void EnsureNotOwnerOnly(IEnumerable<string> permissionCodes)
+    {
+        var ownerOnly = permissionCodes.Where(OwnerOnlyPermissions.Contains).Take(5).ToList();
+        if (ownerOnly.Count > 0)
+            throw new DomainException(ErrorKind.Validation,
+                $"Only the company owner can manage prices and discounts. These cannot be granted: {string.Join(", ", ownerOnly)}.");
+    }
+
     public static void EnsureCanGrant(IReadOnlySet<string> codesHeldByCaller, IReadOnlyCollection<string> codesBeingAdded)
     {
         var notHeld = codesBeingAdded.Where(code => !codesHeldByCaller.Contains(code)).Take(5).ToList();

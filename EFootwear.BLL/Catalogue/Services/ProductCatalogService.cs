@@ -101,10 +101,12 @@ public sealed class ProductCatalogService(
         EnsureBarcodesAreDistinct(writeData);
         await EnsureBarcodesAreFreeAsync(writeData.Select(data => data.Barcode).ToList(), snapshots.Select(snapshot => snapshot.VariantId).ToList(), cancellationToken);
 
-        var salePriceChanges = writeData.Where(data => data.VariantId is not null
-            && snapshots.First(snapshot => snapshot.VariantId == data.VariantId).SalePrice != data.SalePrice).ToList();
-        if (salePriceChanges.Count > 0 && !currentUser.HasPermission(PermissionCodes.Products.NewProduct.ChangeSellingPrice))
-            throw new DomainException(ErrorKind.Forbidden, "You are not allowed to change selling prices.", ErrorCodes.PermissionDenied);
+        // A new size gets its first prices from whoever adds it; changing a saved price is the owner's.
+        var changesSavedPrices = writeData.Any(data => data.VariantId is not null
+            && snapshots.First(snapshot => snapshot.VariantId == data.VariantId) is var saved
+            && (saved.SalePrice != data.SalePrice || saved.PurchasePrice != data.PurchasePrice));
+        if (changesSavedPrices && !currentUser.HasPermission(PermissionCodes.Products.NewProduct.ChangeSellingPrice))
+            throw new DomainException(ErrorKind.Forbidden, "Only the company owner can change prices.", ErrorCodes.PermissionDenied);
 
         await productRepository.UpdateProductAsync(productId, request.RowVersion, header, cancellationToken);
 
