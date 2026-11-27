@@ -21,14 +21,14 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
     private const string NaturalSizeOrder = "case when v.size_code ~ '^[0-9]+(\\.[0-9]+)?$' then v.size_code::numeric end nulls last, v.size_code";
 
     public Task<PagedResult<PriceChangeRowResponse>> PreviewOldToNewAsync(OldToNewPriceChangeRequest request, PageRequest pageRequest, CancellationToken cancellationToken) =>
-        PreviewAsync(request.StoreId, request.DepartmentId, request.CategoryId, request.BrandId, request.PriceType, pageRequest,
+        PreviewAsync(request.StoreId, request.DepartmentId, One(request.CategoryId), One(request.BrandId), request.PriceType, pageRequest,
             (parameters, current) => $"{current} = {parameters.Add(request.OldPrice)}", (parameters, _) => parameters.Add(request.NewPrice),
             cancellationToken);
 
     public Task<PagedResult<PriceChangeRowResponse>> PreviewPercentageAsync(PercentagePriceChangeRequest request, PageRequest pageRequest, CancellationToken cancellationToken)
     {
         var multiplier = request.IncreasePercent is { } increase ? 100m + increase : 100m - request.DecreasePercent!.Value;
-        return PreviewAsync(request.StoreId, request.DepartmentId, request.CategoryId, request.BrandId, PriceTypeCodes.Sale, pageRequest,
+        return PreviewAsync(request.StoreId, request.DepartmentId, request.CategoryIds, request.BrandIds, PriceTypeCodes.Sale, pageRequest,
             (parameters, current) => PercentageCondition(parameters, current, multiplier),
             (parameters, current) => PercentageNewPrice(parameters, current, multiplier), cancellationToken);
     }
@@ -39,7 +39,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         var current = CurrentPriceExpression(request.PriceType, request.StoreId is not null);
         var condition = $"{current} = {parameters.Add(request.OldPrice)}";
         var newPrice = parameters.Add(request.NewPrice);
-        return await ApplyAsync(batchId, request.PriceType, request.StoreId, request.DepartmentId, request.CategoryId, request.BrandId, productIds: null,
+        return await ApplyAsync(batchId, request.PriceType, request.StoreId, request.DepartmentId, One(request.CategoryId), One(request.BrandId), productIds: null,
                                 condition, newPrice, PriceChangeReasonCodes.BulkOldToNew, parameters, changedBy, cancellationToken);
     }
 
@@ -50,7 +50,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         var current = CurrentPriceExpression(PriceTypeCodes.Sale, request.StoreId is not null);
         var condition = PercentageCondition(parameters, current, multiplier);
         var newPrice = PercentageNewPrice(parameters, current, multiplier);
-        return await ApplyAsync(batchId, PriceTypeCodes.Sale, request.StoreId, request.DepartmentId, request.CategoryId, request.BrandId, productIds: null,
+        return await ApplyAsync(batchId, PriceTypeCodes.Sale, request.StoreId, request.DepartmentId, request.CategoryIds, request.BrandIds, productIds: null,
                                 condition, newPrice, PriceChangeReasonCodes.BulkPercentage, parameters, changedBy, cancellationToken);
     }
 
@@ -60,7 +60,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         var current = CurrentPriceExpression(PriceTypeCodes.Sale, request.StoreId is not null);
         var newPrice = parameters.Add(request.NewSalePrice);
         var condition = $"{current} <> {newPrice}";
-        return await ApplyAsync(batchId, PriceTypeCodes.Sale, request.StoreId, departmentId: null, categoryId: null, brandId: null, request.ProductIds.ToArray(),
+        return await ApplyAsync(batchId, PriceTypeCodes.Sale, request.StoreId, departmentId: null, categoryIds: null, brandIds: null, request.ProductIds.ToArray(),
                                 condition, newPrice, PriceChangeReasonCodes.NewSalePrice, parameters, changedBy, cancellationToken);
     }
 
@@ -113,7 +113,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         return (restored, (int)candidateCount - restored);
     }
 
-    private async Task<int> ApplyAsync(Guid batchId, string priceType, Guid? storeId, Guid? departmentId, Guid? categoryId, Guid? brandId, Guid[]? productIds,
+    private async Task<int> ApplyAsync(Guid batchId, string priceType, Guid? storeId, Guid? departmentId, IReadOnlyList<Guid>? categoryIds, IReadOnlyList<Guid>? brandIds, Guid[]? productIds,
                                        string condition, string newPriceExpression, string reason, SqlParameterList parameters, Guid changedBy,
                                        CancellationToken cancellationToken)
     {
@@ -126,7 +126,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         var priceTypeParameter = parameters.Add(priceType);
         var store = storeId is { } id ? parameters.Add(id) : null;
         var current = CurrentPriceExpression(priceType, store is not null);
-        var filters = BuildFilters(departmentId, categoryId, brandId, productIds, parameters);
+        var filters = BuildFilters(departmentId, categoryIds, brandIds, productIds, parameters);
         var storeJoin = store is null ? "" : $"left join catalog.store_price_overrides so on so.company_id = v.company_id and so.variant_id = v.id and so.store_id = {store}";
         var maximum = CataloguePriceRules.MaximumPrice;
 
@@ -196,7 +196,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         return await databaseContext.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
     }
 
-    private async Task<PagedResult<PriceChangeRowResponse>> PreviewAsync(Guid? storeId, Guid? departmentId, Guid? categoryId, Guid? brandId, string priceType,
+    private async Task<PagedResult<PriceChangeRowResponse>> PreviewAsync(Guid? storeId, Guid? departmentId, IReadOnlyList<Guid>? categoryIds, IReadOnlyList<Guid>? brandIds, string priceType,
                                                                         PageRequest pageRequest, Func<SqlParameterList, string, string> condition,
                                                                         Func<SqlParameterList, string, string> newPrice, CancellationToken cancellationToken)
     {
@@ -207,7 +207,7 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         var current = CurrentPriceExpression(priceType, store is not null);
         var conditionSql = condition(parameters, current);
         var newPriceSql = newPrice(parameters, current);
-        var filters = BuildFilters(departmentId, categoryId, brandId, null, parameters);
+        var filters = BuildFilters(departmentId, categoryIds, brandIds, null, parameters);
         var storeJoin = store is null ? "" : $"left join catalog.store_price_overrides so on so.company_id = v.company_id and so.variant_id = v.id and so.store_id = {store}";
         var stockCondition = store is null ? "" : $"and sb.store_id = {store}";
         var currentSale = store is null ? "vp.sale_price" : "coalesce(so.sale_price, vp.sale_price)";
@@ -240,6 +240,8 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
         return new PagedResult<PriceChangeRowResponse>(items, pageRequest.PageNumber, pageRequest.PageSize, rows.FirstOrDefault()?.TotalCount ?? 0);
     }
 
+    private static Guid[]? One(Guid? id) => id is { } value ? [value] : null;
+
     private static string CurrentPriceExpression(string priceType, bool hasStore) =>
         priceType == PriceTypeCodes.Purchase ? "vp.purchase_price" : hasStore ? "coalesce(so.sale_price, vp.sale_price)" : "vp.sale_price";
 
@@ -249,12 +251,12 @@ public sealed class BulkPriceRepository(DatabaseSession databaseSession, ICurren
     private string PercentageCondition(SqlParameterList parameters, string current, decimal multiplier) =>
         $"{PercentageNewPrice(parameters, current, multiplier)} <> {current}";
 
-    private static string BuildFilters(Guid? departmentId, Guid? categoryId, Guid? brandId, Guid[]? productIds, SqlParameterList parameters)
+    private static string BuildFilters(Guid? departmentId, IReadOnlyList<Guid>? categoryIds, IReadOnlyList<Guid>? brandIds, Guid[]? productIds, SqlParameterList parameters)
     {
         var filters = new StringBuilder();
         if (departmentId is { } department) filters.Append($" and p.department_id = {parameters.Add(department)}");
-        if (categoryId is { } category) filters.Append($" and p.category_id = {parameters.Add(category)}");
-        if (brandId is { } brand) filters.Append($" and p.brand_id = {parameters.Add(brand)}");
+        if (categoryIds is { Count: > 0 }) filters.Append($" and p.category_id = any({parameters.Add(categoryIds.ToArray())})");
+        if (brandIds is { Count: > 0 }) filters.Append($" and p.brand_id = any({parameters.Add(brandIds.ToArray())})");
         if (productIds is not null) filters.Append($" and p.id = any({parameters.Add(productIds)})");
         return filters.ToString();
     }

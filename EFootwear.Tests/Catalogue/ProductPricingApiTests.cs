@@ -33,7 +33,7 @@ public class ProductPricingApiTests(ApiTestEnvironment environment)
         new { priceType, storeId, departmentId = (Guid?)null, categoryId = (Guid?)null, brandId = (Guid?)null, oldPrice, newPrice, clientTransactionId };
 
     private static object Percentage(decimal? increase, decimal? decrease, Guid? storeId = null, Guid? clientTransactionId = null) =>
-        new { storeId, departmentId = (Guid?)null, categoryId = (Guid?)null, brandId = (Guid?)null, increasePercent = increase, decreasePercent = decrease, clientTransactionId };
+        new { storeId, departmentId = (Guid?)null, categoryIds = Array.Empty<Guid>(), brandIds = Array.Empty<Guid>(), increasePercent = increase, decreasePercent = decrease, clientTransactionId };
 
     private static async Task<long> SalePriceAsync(HttpClient client, Guid productId, string sizeCode) =>
         ReadVariants(await GetProductAsync(client, productId)).Single(variant => variant.SizeCode == sizeCode).SalePrice;
@@ -112,6 +112,23 @@ public class ProductPricingApiTests(ApiTestEnvironment environment)
 
         await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, Url(ApiRoutes.ProductPrices.Percentage), Percentage(null, 33.33m));
         Assert.Equal(732, await SalePriceAsync(scenario.OwnerClient, up.ProductId, "27")); // 1098 * 66.67% = 732.0
+    }
+
+    [Fact]
+    public async Task A_percentage_change_matches_any_chosen_category_and_brand_and_refuses_an_unknown_filter()
+    {
+        var (scenario, lookups) = await NewCompanyAsync();
+        await CreateAsync(scenario.OwnerClient, lookups, "Alpha", Variant("27", 500, 999));
+        var url = Url(ApiRoutes.ProductPrices.PercentagePreview);
+        async Task<int> CountAsync(Guid[] categoryIds, Guid[] brandIds) => (await OwnerCompanyScenario.PostJsonAsync(scenario.OwnerClient, url,
+            new { categoryIds, brandIds, increasePercent = 10m })).GetProperty("totalCount").GetInt32();
+
+        Assert.Equal(1, await CountAsync([lookups.CategoryId, Guid.NewGuid()], [Guid.NewGuid(), lookups.BrandId]));
+        Assert.Equal(0, await CountAsync([Guid.NewGuid()], []));
+        Assert.Equal(0, await CountAsync([lookups.CategoryId], [Guid.NewGuid()]));
+        // an old screen still sending one categoryId must not be read as "every category"
+        TestScenarioBuilder.AssertStatus(HttpStatusCode.BadRequest,
+            await scenario.OwnerClient.PostAsJsonAsync(url, new { categoryId = Guid.NewGuid(), increasePercent = 10m }));
     }
 
     [Fact]
